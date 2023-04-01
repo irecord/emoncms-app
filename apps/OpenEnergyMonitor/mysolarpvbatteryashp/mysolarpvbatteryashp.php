@@ -859,21 +859,21 @@ function load_powergraph() {
     powerseries.push({data:solar_data, label: "Solar", color: "#dccc1f", stack:1, lines:{lineWidth:0, fill:1.0}});
     if(config.app.is_dc_battery.value)
     {
-        powerseries.push({data:battery_charge_data, label: "Charge", color: "#fb7b50", stack:2, lines:{lineWidth:0, fill:0.8}});
-        powerseries.push({data:battery_discharge_data, label: "Discharge", color: "#fbb450", stack:2, lines:{lineWidth:0, fill:0.8}});
-        powerseries.push({data:use_data, label: "House", color: "#82cbfc", stack:3, lines:{lineWidth:0, fill:0.8}});
+        powerseries.push({data:battery_charge_data, label: "Charge", color: "#fb7b50", stack:1, lines:{lineWidth:0, fill:0.75}});
+        powerseries.push({data:battery_discharge_data, label: "Discharge", color: "#fbb450", stack:2, lines:{lineWidth:0, fill:0.75}});
+        powerseries.push({data:use_data, label: "House", color: "#82cbfc", stack:3, lines:{lineWidth:0, fill:0.75}});
 
         if(config.app.heat_pump.value)
-            powerseries.push({data:heat_pump_data, label: "Heat Pump", color: "#f33", stack:3, lines:{lineWidth:0, fill:0.8}});
+            powerseries.push({data:heat_pump_data, label: "Heat Pump", color: "#f33", stack:3, lines:{lineWidth:0, fill:0.75}});
     }
     else
     {
-	    powerseries.push({data:use_data, label: "House", color: "#82cbfc", stack:2, lines:{lineWidth:0, fill:0.8}});
-        powerseries.push({data:battery_charge_data, label: "Charge", color: "#fb7b50", stack:2, lines:{lineWidth:0, fill:0.8}});
-        powerseries.push({data:battery_discharge_data, label: "Discharge", color: "#fbb450", stack:1, lines:{lineWidth:0, fill:0.8}});
+        powerseries.push({data:use_data, label: "House", color: "#82cbfc", stack:2, lines:{lineWidth:0, fill:0.75}});
+        powerseries.push({data:battery_charge_data, label: "Charge", color: "#fb7b50", stack:2, lines:{lineWidth:0, fill:0.75}});
+        powerseries.push({data:battery_discharge_data, label: "Discharge", color: "#fbb450", stack:1, lines:{lineWidth:0, fill:0.75}});
 
         if(config.app.heat_pump.value)
-            powerseries.push({data:heat_pump_data, label: "Heat Pump", color: "#f33", stack:2, lines:{lineWidth:0, fill:0.8}});
+            powerseries.push({data:heat_pump_data, label: "Heat Pump", color: "#f33", stack:2, lines:{lineWidth:0, fill:0.75}});
     }
 
     

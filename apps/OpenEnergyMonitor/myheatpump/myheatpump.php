@@ -102,6 +102,8 @@
           
     <div id="advanced-block" style="background-color:#fff; padding:10px; display:none">
       <div style="color:#000">
+        <p id="show_flow_rate_bound" style="display:none"><b>Show flow rate:</b> <input id="show_flow_rate" type="checkbox" style="margin-top:-4px; margin-left:7px"></p>
+      
         <table class="table">
           <tr>
           <th></th>
@@ -115,7 +117,25 @@
           <tbody id="stats"></tbody>
         </table>
         
-        <b>Simulate heat output using carnot COP equation</b><input id="carnot_enable" type="checkbox" style="margin-top:-4px; margin-left:7px">
+        <hr style="margin:10px 0px 10px 0px">
+        <p><b>Standby</b></p>
+        <p>Electricity consumption below starting power (standby): <span id="standby_kwh"></span> kWh</p>        
+        <p>COP in window not including standby: <span id="standby_cop"></span><span id="standby_cop_simulated"></span></p>   
+        <div class="input-prepend input-append" style="margin-top:5px">
+          <span class="add-on">Starting power (W)</span>
+          <input type="text" style="width:50px" id="starting_power" value="100">
+        </div>     
+
+        <hr style="margin:10px 0px 10px 0px">
+        
+        <p><b>Show mean values for periods when heat pump is running only:</b> <input id="stats_when_running" type="checkbox" style="margin-top:-4px; margin-left:7px"><br><span style="font-size:12px">(Based on starting power value above)</span></p>        
+
+        <div id="mean_when_running"></div>
+        
+        <hr style="margin:10px 0px 10px 0px">
+        
+        <b>Simulate heat output using carnot COP equation</b><input id="carnot_enable" type="checkbox" style="margin-top:-4px; margin-left:7px"> &nbsp;&nbsp;
+        <b>Show as % of carnot COP</b><input id="carnot_enable_prc" type="checkbox" style="margin-top:-4px; margin-left:7px">
         <br>
         <div class="input-prepend input-append" style="margin-top:5px">
           <span class="add-on">Condensing offset (K)</span>
@@ -123,16 +143,21 @@
           <span class="add-on">Evaporator offset (K)</span>
           <input type="text" style="width:50px" id="evaporator_offset" value="-6">
         </div>
-        <div class="input-prepend input-append" style="margin-top:5px">
+        <div id="heatpump_factor_bound" class="input-prepend input-append" style="margin-top:5px">
           <span class="add-on">Heatpump factor</span>
           <input type="text" style="width:50px" id="heatpump_factor" value="0.49">
-          <span class="add-on">Starting power (W)</span>
-          <input type="text" style="width:50px" id="starting_power" value="100">
         </div>
-        <div class="input-prepend input-append" style="margin-top:5px">
+        <div id="fixed_outside_temperature_bound" class="input-prepend input-append" style="margin-top:5px">
           <span class="add-on">Fixed outside temperature (C)</span>
           <input type="text" style="width:50px" id="fixed_outside_temperature" value="6.0">
-        </div>        
+        </div>
+        
+        <p>Measured COP vs Carnot COP distribution:</p>
+        <div id="histogram_bound" style="width:100%; height:400px;overflow:hidden">
+          <div id="histogram" style="height:400px"></div>
+        </div>
+        
+        
       </div>
     </div>
 
@@ -140,7 +165,7 @@
   <div class="col1"><div class="col1-inner">
          
     <div class="block-bound">
-        <div class="block-title">ALL TIME HISTORY</div>
+        <div class="block-title" id="all_time_history_title">ALL TIME HISTORY</div>
     </div>
           
     <div style="background-color:#fff; padding:10px;">
@@ -157,7 +182,7 @@
         </td>
         
         <td style="width:33.3%; text-align:center" valign="top">
-          <div class="title1">All-time COP</div>
+          <div class="title1">SCOP</div>
           <div class="value1"><span id="total_cop"></span></div>
         </td>
       </tr>
@@ -168,22 +193,27 @@
 
 </div>  
 </div>    
-  
-<div id="app-setup" class="block py-2 px-5 hide">
-    <h2 class="app-config-title text-success">My Heatpump</h2>
 
-    <div class="app-config-description">
-      <div class="app-config-description-inner">
-        The My Heatpump app can be used to explore the performance of a heatpump including, electricity consumption, heat output, COP and system temperatures.
-        <br><br>
-        <b>Auto configure:</b> This app can auto-configure connecting to emoncms feeds with the names shown on the right, alternatively feeds can be selected by clicking on the edit button.
-        <br><br>
-        <b>Cumulative kWh</b> feeds can be generated from power feeds with the power_to_kwh input processor.
-        <br><br>
-      </div>
+<section id="app-setup" class="hide pb-3">
+    <!-- instructions and settings -->
+    <div class="px-3">
+        <div class="row-fluid">
+            <div class="span7 xapp-config-description">
+                <div class="xapp-config-description-inner text-light">
+                    <h2 class="app-config-title text-primary"><?php echo _('My Heatpump'); ?></h2>
+                    <p class="lead">The My Heatpump app can be used to explore the performance of a heatpump including, electricity consumption, heat output, COP and system temperatures.</p>
+                    <p><strong class="text-white">Auto configure:</strong> This app can auto-configure connecting to emoncms feeds with the names shown on the right, alternatively feeds can be selected by clicking on the edit button.</p>
+                    <p><strong class="text-white">Cumulative kWh</strong> feeds can be created from power feeds using the power_to_kwh input processor, which converts power data (measured in watts) into energy consumption data (measured in kWh).</p>
+                    <p><strong class="text-white">Share publicly:</strong> Check the "public" check box if you want to share your dashboard publicly, and ensure that the associated feeds are also made public by adjusting their settings on the feeds page.</p>
+                    <p><strong class="text-white">Start date:</strong> To modify the start date for cumulative total electricity consumption, heat output and SCOP, input a unix timestamp corresponding to your desired starting date and time.</p>
+
+                  </div>
+            </div>
+            <div class="span5 app-config pt-3"></div>
+        </div>
     </div>
-    <div class="app-config"></div>
-</div>
+</section>
+
 
 <div class="ajax-loader"></div>
 
@@ -193,5 +223,5 @@ var session_write = <?php echo $session['write']; ?>;
 config.name = "<?php echo $name; ?>";
 config.db = <?php echo json_encode($config); ?>;
 </script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump.js?v=23"></script>
+<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump.js?v=50"></script>
 
