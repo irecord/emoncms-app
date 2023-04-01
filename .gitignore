@@ -1,5 +1,6 @@
 .project
 .buildpath
+.vs
 
 # Ignore all Apps except core ones
 apps/*
