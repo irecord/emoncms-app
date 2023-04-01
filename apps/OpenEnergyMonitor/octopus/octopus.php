@@ -720,17 +720,17 @@ function graph_load()
     // Two tier tariff comparison option: e.g GO or economy7
     data["go"] = [];
     var d = new Date();
-    for (var time=view.start; time<view.end; time+=interval*1000) {
+    //for (var time=view.start; time<view.end; time+=interval*1000) {
 
-        d.setTime(time);
-        let h = d.getHours() + (d.getMinutes()/60)
+        //d.setTime(time);
+        //let h = d.getHours() + (d.getMinutes()/60)
 
-        let cost = 15.88;
-        if (h>=0.5 && h<4.5) cost = 4.76;
+        //let cost = 15.88;
+        //if (h>=0.5 && h<4.5) cost = 4.76;
 
-        data["go"].push([time,cost]);
-        data["go"].push([time+(intervalms-1),cost]);
-    }
+        //data["go"].push([time,cost]);
+        //data["go"].push([time+(intervalms-1),cost]);
+    //}
 
     data["use"] = [];
     data["import"] = [];
@@ -1037,7 +1037,7 @@ function graph_draw()
     if (solarpv_mode) graph_series.push({label: "Outgoing", data:data["outgoing"], yaxis:2, color:"#941afb", lines: { show: true, align: "center", lineWidth:1}}); 
     if (show_carbonintensity) graph_series.push({label: "Carbon Intensity", data:data["carbonintensity"], yaxis:2, color:"#888", lines: { show: true, align: "left", lineWidth:1}});
 
-    graph_series.push({label: "Go", data:data["go"], yaxis:2, color:"#7c1a80", lines: { show: true, align: "left", lineWidth:1}});
+    //graph_series.push({label: "Go", data:data["go"], yaxis:2, color:"#7c1a80", lines: { show: true, align: "left", lineWidth:1}});
 
     var options = {
         xaxis: {
