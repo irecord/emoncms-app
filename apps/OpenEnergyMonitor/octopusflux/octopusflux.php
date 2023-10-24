@@ -561,7 +561,7 @@ $("#download-csv").click(function(){
     var csv = [];
     
     if (solarpv_mode) {
-        keys = ["flux","outgoing","use","import","import_cost","export","export_cost","solar_used","solar_used_cost","meter_kwh_hh","meter_kwh_hh_cost"]
+        keys = ["flux","outgoing","use","import","import_cost","export","export_cost","solar_used","solar_used_cost","grid_charge","grid_charge_cost","meter_kwh_hh","meter_kwh_hh_cost"]
     } else {
         keys = ["flux","import","import_cost","meter_kwh_hh","meter_kwh_hh_cost"]
     }
@@ -687,7 +687,9 @@ function graph_load()
     data["export"] = [];
     data["export_cost"] = [];
     data["solar_used"] = []
-    data["solar_used_cost"] = [];
+    data["solar_used_cost"] = []; 
+    data["grid_charge"] = []
+    data["grid_charge_cost"] = [];
     data["meter_kwh_hh"] = meter_kwh_hh;
     data["meter_kwh_hh_cost"] = [];
     
@@ -711,6 +713,8 @@ function graph_load()
     var total_kwh_export = 0
     var total_cost_solar_used = 0
     var total_kwh_solar_used = 0
+    var total_cost_grid_charge = 0
+    var total_kwh_grid_charge = 0
     
     var total_co2 = 0;
     var sum_co2 = 0;
@@ -752,6 +756,7 @@ function graph_load()
                 let kwh_use = 0;
                 let kwh_import = 0;
                 let kwh_solar = 0;
+                let kwh_grid_charge = 0;
 
                 if (use_kwh[z]!=undefined && use_kwh[z-1]!=undefined) kwh_use = (use_kwh[z][1]-use_kwh[z-1][1]);
                 if (import_kwh[z]!=undefined && import_kwh[z-1]!=undefined) kwh_import = (import_kwh[z][1]-import_kwh[z-1][1]);
@@ -764,6 +769,11 @@ function graph_load()
 
                 // calc export & self consumption
                 let kwh_solar_used = kwh_use - kwh_import;
+                if (kwh_solar_used<0.0) {
+                    kwh_grid_charge = kwh_solar_used*-1;
+                    kwh_import -= kwh_grid_charge;
+                    kwh_solar_used = 0.0;
+                }
                 let kwh_export = kwh_solar - kwh_solar_used;
 
                 // half hourly datasets for graph
@@ -771,11 +781,13 @@ function graph_load()
                 data["import"].push([time,kwh_import]);
                 data["export"].push([time,kwh_export*-1]);
                 data["solar_used"].push([time,kwh_solar_used]);
+                data["grid_charge"].push([time,kwh_grid_charge]);
 
                 // energy totals
                 total_kwh_import += kwh_import
                 total_kwh_export += kwh_export
                 total_kwh_solar_used += kwh_solar_used
+                total_kwh_grid_charge += kwh_grid_charge
 
                 // costs
                 let cost_import = data.flux[2*(z-1)][1]*0.01;
@@ -785,11 +797,13 @@ function graph_load()
                 data["import_cost"].push([time,kwh_import*cost_import]);
                 data["export_cost"].push([time,kwh_export*cost_export*-1]);
                 data["solar_used_cost"].push([time,kwh_solar_used*cost_import]);
+                data["grid_charge_cost"].push([time,kwh_grid_charge*cost_import]);
 
                 // cost totals
                 total_cost_import += kwh_import*cost_import
                 total_cost_export += kwh_export*cost_export
                 total_cost_solar_used += kwh_solar_used*cost_import
+                total_cost_grid_charge += kwh_grid_charge*cost_import
 
                 if (show_carbonintensity) {
                     let co2intensity = data.carbonintensity[2*(z-1)][1];
@@ -912,11 +926,21 @@ function graph_load()
         out += "<td>"+(unit_cost_solar_used*100*1.05).toFixed(1)+"p/kWh (inc VAT)</td>";
         out += "</tr>";
 
-        var unit_cost_solar_combined = ((total_cost_solar_used+total_cost_export)/(total_kwh_solar_used+total_kwh_export));
+        var unit_cost_grid_charge = (total_cost_grid_charge/total_kwh_grid_charge);
         out += "<tr>";
-        out += "<td>Solar + Export</td>";
-        out += "<td>"+(total_kwh_solar_used+total_kwh_export).toFixed(1)+" kWh</td>";
-        out += "<td>£"+(total_cost_solar_used+total_cost_export).toFixed(2)+"</td>";
+        out += "<td>Grid Charge</td>";
+        out += "<td>"+total_kwh_grid_charge.toFixed(1)+" kWh</td>";
+        out += "<td>£"+total_cost_grid_charge.toFixed(2)+"</td>";
+        out += "<td>"+(unit_cost_grid_charge*100*1.05).toFixed(1)+"p/kWh (inc VAT)</td>";
+        out += "</tr>";
+
+        var total_cost_solar_combined = total_cost_solar_used+total_cost_export-total_cost_grid_charge;
+        var total_kwh_solar_combined = total_kwh_solar_used+total_kwh_export;
+        var unit_cost_solar_combined = total_cost_solar_combined/total_kwh_solar_combined;
+        out += "<tr>";
+        out += "<td>Solar + Export - Grid Charge</td>";
+        out += "<td>"+total_kwh_solar_combined.toFixed(1)+" kWh</td>";
+        out += "<td>£"+total_cost_solar_combined.toFixed(2)+"</td>";
         out += "<td>"+(unit_cost_solar_combined*100*1.05).toFixed(1)+"p/kWh (inc VAT)</td>";
         out += "</tr>";
         
@@ -954,12 +978,14 @@ function graph_draw()
     graph_series = [];
     if (view_mode=="energy") {
         if (solarpv_mode) graph_series.push({label: "Used Solar", data:data["solar_used"], yaxis:1, color:"#bec745", stack: true, bars: bars});
+        if (solarpv_mode) graph_series.push({label: "Grid Charge", data:data["grid_charge"], yaxis:1, color:"#fec745", stack: true, bars: bars});
         graph_series.push({label: "Import", data:data["import"], yaxis:1, color:"#44b3e2", stack: true, bars: bars});
         if (solarpv_mode) graph_series.push({label: "Export", data:data["export"], yaxis:1, color:"#dccc1f", stack: false, bars: bars});
         if (smart_meter_data && !solarpv_mode) graph_series.push({label: "Import Actual", data:data["meter_kwh_hh"], yaxis:1, color:"#1d8dbc", stack: false, bars: bars});
     }
     else if (view_mode=="cost") {
         if (solarpv_mode) graph_series.push({label: "Used Solar", data:data["solar_used_cost"], yaxis:1, color:"#bec745", stack: true, bars: bars});
+        if (solarpv_mode) graph_series.push({label: "Grid Charge", data:data["grid_charge_cost"], yaxis:1, color:"#fec745", stack: true, bars: bars});
         graph_series.push({label: "Import", data:data["import_cost"], yaxis:1, color:"#44b3e2", stack: true, bars: bars});
         if (solarpv_mode) graph_series.push({label: "Export", data:data["export_cost"], yaxis:1, color:"#dccc1f", stack: false, bars: bars});
         if (smart_meter_data && !solarpv_mode) graph_series.push({label: "Import Actual", data:data["meter_kwh_hh_cost"], yaxis:1, color:"#1d8dbc", stack: false, bars: bars});
