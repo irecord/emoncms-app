@@ -9,3 +9,4 @@ apps/*/
 !apps/template
 !apps/OpenEnergyMonitor
 !apps/OpenEnergyMonitor/*
+/.vs
