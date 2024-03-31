@@ -1202,9 +1202,9 @@ function getdataremote(id,start,end,interval)
     const li = 14.525/1.05;
     const di = 24.208/1.05;
     const hi = 33.891/1.05;
-    const ol = 5.157/1.05;
-    const od = 14.837/1.05;
-    const oh = 24.523/1.05;
+    const ol = 5.157;
+    const od = 14.837;
+    const oh = 24.523;
 
     var data = [];
     //          0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
