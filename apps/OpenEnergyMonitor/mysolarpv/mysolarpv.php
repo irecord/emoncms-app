@@ -241,6 +241,10 @@ var latest_start_time = 0;
 var panning = false;
 var bargraph_initialized = false;
 var live_timerange = 0;
+var meta = {};
+var power_graph_end_time = 0;
+
+var powerseries = null;
 
 config.init();
 
@@ -255,10 +259,19 @@ function init()
     var timeWindow = (3600000*6.0*1);
     view.end = +new Date;
 
-    var meta = feed.getmeta(config.app.use.value);
+    if (config.app.use.value) {
+        meta['use'] = feed.getmeta(config.app.use.value);
+        if (meta['use'].end_time>power_graph_end_time) power_graph_end_time = meta['use'].end_time;
+    }
+
+    if (config.app.solar.value) {
+        meta['solar'] = feed.getmeta(config.app.solar.value);
+        if (meta['solar'].end_time>power_graph_end_time) power_graph_end_time = meta['solar'].end_time;
+    }
+
     // If the feed is more than 1 hour behind then start the view at the end of the feed
-    if ((view.end*0.001-meta.end_time)>3600) {
-        view.end = meta.end_time*1000;
+    if ((view.end*0.001-power_graph_end_time)>3600) {
+        view.end = power_graph_end_time*1000;
         autoupdate = false;
     }
     view.start = view.end - timeWindow;
@@ -425,6 +438,8 @@ function livefn()
         var updatetimesolar = feeds[config.app.solar.value].time;
         var updatetimeuse = feeds[config.app.use.value].time;
         var updatetime = Math.max(updatetimesolar, updatetimeuse);
+        
+        power_graph_end_time = updatetime;
         timeseries.append("solar",updatetime,solar_now);
         timeseries.trim_start("solar",view.start*0.001);
         timeseries.append("use",updatetime,use_now);
@@ -482,7 +497,6 @@ function draw()
     if (viewmode=="powergraph") draw_powergraph();
     if (viewmode=="bargraph") draw_bargraph();
 }
-var powerseries = null;
 
 function draw_powergraph() {
     var dp = 1;
@@ -533,6 +547,7 @@ function draw_powergraph() {
     var sample_size = Math.min(timeseries.length("solar"), timeseries.length("use"));
 
     for (var z=0; z<sample_size; z++) {
+        var time = datastart + (1000 * interval * z);
 
         // -------------------------------------------------------------------------------------------------------
         // Get solar or use values
@@ -540,29 +555,49 @@ function draw_powergraph() {
         if (timeseries.value("solar",z)!=null) solar_now = timeseries.value("solar",z);
         if (timeseries.value("use",z)!=null) use_now = timeseries.value("use",z);
         
-        // -------------------------------------------------------------------------------------------------------
-        // Supply / demand balance calculation
-        // -------------------------------------------------------------------------------------------------------
-        if (solar_now<config.app.solar_disp_min.value) solar_now = 0;
-        var balance = solar_now - use_now;
-        
-        if (balance>=0) total_use_direct_kwh += (use_now*interval)/(1000*3600);
-        if (balance<0) total_use_direct_kwh += (solar_now*interval)/(1000*3600);
-        
-        var store_change = (balance * interval) / (1000*3600);
-        store += store_change;
-        
-        total_solar_kwh += (solar_now*interval)/(1000*3600);
-        total_use_kwh += (use_now*interval)/(1000*3600);
-        
-        var time = datastart + (1000 * interval * z);
-        use_data.push([time,use_now]);
-        gen_data.push([time,solar_now]);
-        bal_data.push([time,balance]);
-        store_data.push([time,store]);
-        
+        if (time*0.001<=power_graph_end_time) {
+            // -------------------------------------------------------------------------------------------------------
+            // Supply / demand balance calculation
+            // -------------------------------------------------------------------------------------------------------
+            if (solar_now<config.app.solar_disp_min.value) solar_now = 0;
+            var balance = solar_now - use_now;
+            
+            if (balance>=0) total_use_direct_kwh += (use_now*interval)/(1000*3600);
+            if (balance<0) total_use_direct_kwh += (solar_now*interval)/(1000*3600);
+            
+            var store_change = (balance * interval) / (1000*3600);
+            store += store_change;
+            
+            total_solar_kwh += (solar_now*interval)/(1000*3600);
+            total_use_kwh += (use_now*interval)/(1000*3600);
+            
+            
+            use_data.push([time,use_now]);
+            gen_data.push([time,solar_now]);
+            bal_data.push([time,balance]);
+            store_data.push([time,store]);
+        }
+
         t += interval;
     }
+    
+    // Consider loading totals from kWh feeds if available
+    // Need to avoid too many requests here, currently updating every 10s
+    /*
+    console.log("-----");
+    
+    skwh = get_kwh_between_two_timestamps('solar_kwh',view.start*0.001,view.end*0.001);
+    console.log(skwh);
+    
+    ukwh = get_kwh_between_two_timestamps('use_kwh',view.start*0.001,view.end*0.001);
+    console.log(ukwh);
+    
+    ikwh = get_kwh_between_two_timestamps('import_kwh',view.start*0.001,view.end*0.001);
+    console.log(ikwh);
+    
+    console.log((ukwh-ikwh)/skwh)
+    */
+    
     if (total_solar_kwh < 1) {
     	$(".total_solar_kwh").html(total_solar_kwh.toFixed(2));
     } else {
@@ -605,6 +640,18 @@ function draw_powergraph() {
     $(".ajax-loader").hide();
 }
 
+function get_kwh_between_two_timestamps(key,start,end) {
+    if (meta[key]!=undefined) {
+        if (start<meta[key].start_time) start = meta[key].start_time;
+        if (end>meta[key].end_time) end = meta[key].end_time;
+        
+        var kwh_start = feed.getvalue(config.app[key].value,start);
+        var kwh_end = feed.getvalue(config.app[key].value,end);
+        return kwh_end - kwh_start;
+    }
+    return false;
+}
+
 // ------------------------------------------------------------------------------------------
 // POWER GRAPH EVENTS
 // ------------------------------------------------------------------------------------------
@@ -645,13 +692,15 @@ function powergraph_events() {
             if (powerseries) {
                 for (i = 0; i < powerseries.length; i++) {
                     var series = powerseries[i];
-                    if (series.name.toUpperCase()=="BALANCE") {
-                        tooltip_items.push([series.name.toUpperCase(), series.data[item.dataIndex][1].toFixed(1), "kWh"]);
-                    } else {
-                        if ( series.data[item.dataIndex][1] >= 1000) {
-                            tooltip_items.push([series.name.toUpperCase(), series.data[item.dataIndex][1].toFixed(0)/1000 , "kW"]);
+                    if (series.data[item.dataIndex]!=undefined && series.data[item.dataIndex][1]!=null) {
+                        if (series.name.toUpperCase()=="BALANCE") {
+                            tooltip_items.push([series.name.toUpperCase(), series.data[item.dataIndex][1].toFixed(1), "kWh"]);
                         } else {
-                            tooltip_items.push([series.name.toUpperCase(), series.data[item.dataIndex][1].toFixed(0), "W"]);
+                            if ( series.data[item.dataIndex][1] >= 1000) {
+                                tooltip_items.push([series.name.toUpperCase(), series.data[item.dataIndex][1].toFixed(0)/1000 , "kW"]);
+                            } else {
+                                tooltip_items.push([series.name.toUpperCase(), series.data[item.dataIndex][1].toFixed(0), "W"]);
+                            }
                         }
                     }
                 }
@@ -677,17 +726,17 @@ function init_bargraph() {
     bargraph_initialized = true;
     // Fetch the start_time covering all kwh feeds - this is used for the 'all time' button
     latest_start_time = 0;
-    var solar_meta = feed.getmeta(config.app.solar_kwh.value);
-    var use_meta = feed.getmeta(config.app.use_kwh.value);
-    var import_meta = feed.getmeta(config.app.import_kwh.value);
-    if (solar_meta.start_time > latest_start_time) latest_start_time = solar_meta.start_time;
-    if (use_meta.start_time > latest_start_time) latest_start_time = use_meta.start_time;
-    if (import_meta.start_time > latest_start_time) latest_start_time = import_meta.start_time;
+    meta['solar_kwh'] = feed.getmeta(config.app.solar_kwh.value);
+    meta['use_kwh'] = feed.getmeta(config.app.use_kwh.value);
+    meta['import_kwh'] = feed.getmeta(config.app.import_kwh.value);
+    if (meta['solar_kwh'].start_time > latest_start_time) latest_start_time = meta['solar_kwh'].start_time;
+    if (meta['use_kwh'].start_time > latest_start_time) latest_start_time = meta['use_kwh'].start_time;
+    if (meta['import_kwh'].start_time > latest_start_time) latest_start_time = meta['import_kwh'].start_time;
     latest_start_time = latest_start_time;
 
-    var earliest_start_time = solar_meta.start_time;
-    earliest_start_time = Math.min(use_meta.start_time, earliest_start_time);
-    earliest_start_time = Math.min(import_meta.start_time, earliest_start_time);
+    var earliest_start_time = meta['solar_kwh'].start_time;
+    earliest_start_time = Math.min(meta['use_kwh'].start_time, earliest_start_time);
+    earliest_start_time = Math.min(meta['import_kwh'].start_time, earliest_start_time);
     view.first_data = earliest_start_time * 1000;
 
     var timeWindow = (3600000*24.0*40);

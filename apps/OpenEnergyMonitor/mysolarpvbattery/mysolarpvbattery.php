@@ -373,20 +373,20 @@ if (!sessionwrite) $(".openconfig").hide();
 // ----------------------------------------------------------------------
 config.app = {
     // Standard mysolar feeds
-    "use":{"type":"feed", "autoname":"use", "engine":"5", "description":"Building consumption in watts (not including battery charging)"},
-    "solar":{"type":"feed", "autoname":"solar", "engine":"5", "description":"Solar pv generation in watts"},
+    "use":{"type":"feed", "autoname":"use", "description":"Building consumption in watts (not including battery charging)"},
+    "solar":{"type":"feed", "autoname":"solar", "description":"Solar pv generation in watts"},
     // Battery feeds
-    "battery_charge":{"type":"feed", "autoname":"battery_charge", "engine":"5", "description":"Battery charge power in watts"},
-    "battery_discharge":{"type":"feed", "autoname":"battery_discharge", "engine":"5", "description":"Battery discharge power in watts"},
-    "battery_soc":{"optional":true, "type":"feed", "autoname":"battery_soc", "engine":"5", "description":"Battery state of charge %"},
+    "battery_charge":{"type":"feed", "autoname":"battery_charge", "description":"Battery charge power in watts"},
+    "battery_discharge":{"type":"feed", "autoname":"battery_discharge", "description":"Battery discharge power in watts"},
+    "battery_soc":{"optional":true, "type":"feed", "autoname":"battery_soc", "description":"Battery state of charge %"},
 
     // History feeds
-    "use_kwh":{"optional":true, "type":"feed", "autoname":"use_kwh", "engine":5, "description":"Building consumption in kWh (not including battery charging)"},
-    "solar_kwh":{"optional":true, "type":"feed", "autoname":"solar_kwh", "engine":5, "description":"Cumulative solar generation in kWh"},
-    "solar_direct_kwh":{"optional":true, "type":"feed", "autoname":"solar_direct_kwh", "engine":"5", "description":"Cumulative solar generation used directly in kWh"},
-    "import_kwh":{"optional":true, "type":"feed", "autoname":"import_kwh", "engine":5, "description":"Cumulative grid import in kWh"},
-    "battery_charge_kwh":{"optional":true, "type":"feed", "autoname":"battery_charge_kwh", "engine":"5", "description":"Battery charge energy in kWh"},
-    "battery_discharge_kwh":{"optional":true, "type":"feed", "autoname":"battery_discharge_kwh", "engine":"5", "description":"Battery discharge energy in kWh"},
+    "use_kwh":{"optional":true, "type":"feed", "autoname":"use_kwh", "description":"Building consumption in kWh (not including battery charging)"},
+    "solar_kwh":{"optional":true, "type":"feed", "autoname":"solar_kwh", "description":"Cumulative solar generation in kWh"},
+    "solar_direct_kwh":{"optional":true, "type":"feed", "autoname":"solar_direct_kwh", "description":"Cumulative solar generation used directly in kWh"},
+    "import_kwh":{"optional":true, "type":"feed", "autoname":"import_kwh", "description":"Cumulative grid import in kWh"},
+    "battery_charge_kwh":{"optional":true, "type":"feed", "autoname":"battery_charge_kwh", "description":"Battery charge energy in kWh"},
+    "battery_discharge_kwh":{"optional":true, "type":"feed", "autoname":"battery_discharge_kwh", "description":"Battery discharge energy in kWh"},
 
     // Other options
     "kw":{"type":"checkbox", "default":0, "name": "Show kW", "description": "Display power as kW"},
@@ -432,6 +432,9 @@ var power_start = power_end - timeWindow;
 
 var live_timerange = timeWindow;
 
+var meta = {};
+var power_graph_end_time = 0;
+
 config.init();
 
 // App start function
@@ -441,6 +444,24 @@ function init()
 
     view.end = power_end;
     view.start = power_start;
+
+    if (config.app.use.value) {
+        meta['use'] = feed.getmeta(config.app.use.value);
+        if (meta['use'].end_time>power_graph_end_time) power_graph_end_time = meta['use'].end_time;
+    }
+
+    if (config.app.solar.value) {
+        meta['solar'] = feed.getmeta(config.app.solar.value);
+        if (meta['solar'].end_time>power_graph_end_time) power_graph_end_time = meta['solar'].end_time;
+    }
+
+    // If the feed is more than 1 hour behind then start the view at the end of the feed
+    if ((view.end*0.001-power_graph_end_time)>3600) {
+        view.end = power_graph_end_time*1000;
+        autoupdate = false;
+    }
+    view.start = view.end - timeWindow;
+    live_timerange = timeWindow;
   
     if (config.app.solar_kwh.value && config.app.use_kwh.value && config.app.import_kwh.value && config.app.battery_charge_kwh.value && config.app.battery_discharge_kwh.value) {
         init_bargraph();
@@ -679,13 +700,14 @@ function load_powergraph() {
     // -------------------------------------------------------------------------------------------------------
     if (reload) {
         reload = false;
-        timeseries.load("solar",feed.getdata(config.app.solar.value,view.start,view.end,view.interval));
-        timeseries.load("use",feed.getdata(config.app.use.value,view.start,view.end,view.interval));
-        timeseries.load("battery_charge",feed.getdata(config.app.battery_charge.value,view.start,view.end,view.interval));
-        timeseries.load("battery_discharge",feed.getdata(config.app.battery_discharge.value,view.start,view.end,view.interval));
+        // getdata params: feedid,start,end,interval,average=0,delta=0,skipmissing=0,limitinterval=0,callback=false,context=false,timeformat='unixms'
+        timeseries.load("solar",feed.getdata(config.app.solar.value,view.start,view.end,view.interval,0,0,0,0,false,false,'notime'));
+        timeseries.load("use",feed.getdata(config.app.use.value,view.start,view.end,view.interval,0,0,0,0,false,false,'notime'));
+        timeseries.load("battery_charge",feed.getdata(config.app.battery_charge.value,view.start,view.end,view.interval,0,0,0,0,false,false,'notime'));
+        timeseries.load("battery_discharge",feed.getdata(config.app.battery_discharge.value,view.start,view.end,view.interval,0,0,0,0,false,false,'notime'));
         
         if (config.app.battery_soc.value) {
-            timeseries.load("battery_soc",feed.getdata(config.app.battery_soc.value,view.start,view.end,view.interval));
+            timeseries.load("battery_soc",feed.getdata(config.app.battery_soc.value,view.start,view.end,view.interval,0,0,0,0,false,false,'notime'));
         }
     }
     // -------------------------------------------------------------------------------------------------------
@@ -897,13 +919,15 @@ function powergraph_events() {
 
             for (i = 0; i < powerseries.length; i++) {
                 var series = powerseries[i];
-                if (series.label.toUpperCase()=="SOC") {
-                    tooltip_items.push([series.label.toUpperCase(), series.data[item.dataIndex][1].toFixed(1), "%"]);
-                } else {
-                    if ( series.data[item.dataIndex][1] >= 1000) {
-                        tooltip_items.push([series.label.toUpperCase(), series.data[item.dataIndex][1].toFixed(0)/1000 , "kW"]);
+                if (series.data[item.dataIndex]!=undefined && series.data[item.dataIndex][1]!=null) {
+                    if (series.label.toUpperCase()=="SOC") {
+                        tooltip_items.push([series.label.toUpperCase(), series.data[item.dataIndex][1].toFixed(1), "%"]);
                     } else {
-                        tooltip_items.push([series.label.toUpperCase(), series.data[item.dataIndex][1].toFixed(0), "W"]);
+                        if ( series.data[item.dataIndex][1] >= 1000) {
+                            tooltip_items.push([series.label.toUpperCase(), series.data[item.dataIndex][1].toFixed(0)/1000 , "kW"]);
+                        } else {
+                            tooltip_items.push([series.label.toUpperCase(), series.data[item.dataIndex][1].toFixed(0), "W"]);
+                        }
                     }
                 }
             }
