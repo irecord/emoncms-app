@@ -16,10 +16,10 @@ function app_controller()
 {
     global $mysqli,$redis,$path,$session,$route,$user,$settings,$v;
     // Force cache reload of css and javascript
-    $v = 29;
+    $v = 36;
 
     $result = false;
-    
+
     // Apps can be hidden from the settings object e.g:
     // [app]
     // hidden = template
@@ -36,291 +36,64 @@ function app_controller()
 
     require_once "Modules/app/app_model.php";
     $appconfig = new AppConfig($mysqli, $settings['app']);
-    $appavail = $appconfig->get_available();
 
-    if ($route->action == "view" || $route->action == "") {
-        // enable apikey read access
-        $userid = false;
-        $public = false;
-        $apikey = "";
-        
-        if (isset($session['read']) && $session['read']) {
-            $userid = $session['userid'];
-            if (isset($_GET['apikey'])) {
-                $apikey = $user->get_apikey_read($session['userid']);
-            }
-        } else if (isset($_GET['readkey'])) {
-            if ($userid = $user->get_id_from_apikey($_GET['readkey'])) {
-                $apikey = $user->get_apikey_read($userid);      
-            }
-        } else if ($session['public_userid']) {
-            $userid = (int) $session['public_userid'];
-            $public = true;
-        }
-        
-        if ($userid)
-        {            
-            if ($route->subaction) {
-                $app_name = $route->subaction;
-            } else {
-                $app_name = urldecode(get("name",false,false));
-            }
-            $app = $appconfig->get_app_or_default($userid,$app_name,$public);
-            
-            $route->format = "html";
-            $result = "\n<!-- global app css and js -->";
-            $result .= "\n" . '<link href="' . $path . 'Modules/app/Views/css/app.css?v=' . $v . '" rel="stylesheet">';
-            $result .= "\n" . '<script src="' . $path . 'Modules/app/Views/js/app.js?v=' . $v . '"></script>';
-            $result .= "\n\n <!-- app specific view -->\n";
+    // --------------------------------------------------------------
+    // Non app specific routes (requires read or write access)
+    // --------------------------------------------------------------
 
-            if ($app!=false) {
-                $dir = $appconfig->get_app_dir($app->app);
-                $result .= view($dir.$app->app.".php",array("name"=>$app_name, "appdir"=>$dir, "config"=>$app->config, "apikey"=>$apikey));
-            } else if (!$public) {
-                $result .= view("Modules/app/Views/app_view.php",array("apps"=>$appavail));
-            } else {
-                return ""; // redirects to login
-            }
-            return $result;
-        } else {
-            return ""; // redirects to login
-        }
-    }
-    else if ($route->action == "getconfig") {
-
-        // enable apikey read access
-        $userid = false;
-        $public = false;
-        $apikey = "";
-        
-        if (isset($session['read']) && $session['read']) {
-            $userid = $session['userid'];
-        } else if (isset($_GET['readkey'])) {
-            $userid = $user->get_id_from_apikey($_GET['readkey']);
-        } else if ($session['public_userid']) {
-            $userid = (int) $session['public_userid'];
-            $public = true;
-        }
-    
-        $route->format = "json";
-        $app_name = urldecode(get("name",false,false));
-        $app = $appconfig->get_app_or_default($userid,$app_name,$public);
-        
-        if ($app!=false) {
-            return $app;
-        } else {
-            return array("success"=>false, "message"=>"invalid app or permissions");
-        }
-    }
-    else if ($route->action == "getconfigmeta") {
-
-        // enable apikey read access
-        $userid = false;
-        $public = false;
-        $apikey = "";
-        
-        if (isset($session['read']) && $session['read']) {
-            $userid = $session['userid'];
-        } else if (isset($_GET['readkey'])) {
-            $userid = $user->get_id_from_apikey($_GET['readkey']);
-        } else if ($session['public_userid']) {
-            $userid = (int) $session['public_userid'];
-            $public = true;
-        }
-    
-        $route->format = "json";
-        $app_name = urldecode(get("name",false,false));
-        
-        if (!$app = $appconfig->get_app_or_default($userid,$app_name,$public)) {
-            return array("success"=>false, "message"=>"invalid app or permissions");
-        }
-        
-        $result = array();
-        $result["feeds"] = array();
-        
-        $result["start_date"] = 0;
-        
-        if (isset($app->config)) {
-        
-            if (isset($app->config->start_date)) {
-                $result["start_date"] = (int) $app->config->start_date;
-            }
-        
-            $feeds = array(
-                "heatpump_elec",
-                "heatpump_elec_kwh",
-                "heatpump_heat", 
-                "heatpump_heat_kwh", 
-                "heatpump_flowT",
-                "heatpump_returnT",
-                "heatpump_flowrate",
-                "heatpump_roomT",
-                "heatpump_outsideT",
-                "heatpump_dhw",
-                "heatpump_ch",
-                "heatpump_targetT"
-            );
-
-            require_once "Modules/feed/feed_model.php";
-            $feed = new Feed($mysqli,$redis,$settings['feed']);
-
-            foreach ($feeds as $feed_name) {
-                if (isset($app->config->$feed_name)) {
-                    $feedid = (int) $app->config->$feed_name;
-                    
-                    if (!$feedid) continue;
-                    
-                    $feed_meta = array();
-                    $meta = $feed->get_meta($feedid);
-                    
-                    $feed_meta['feedid'] = $feedid;
-                    
-                    if (isset($meta->start_time)) {
-                        $feed_meta['start_time'] = $meta->start_time;
-                    }
-                    
-                    if (isset($meta->end_time)) {
-                        $feed_meta['end_time'] = $meta->end_time;
-                    }
-
-                    if (isset($meta->interval)) {
-                        $feed_meta['interval'] = $meta->interval;
-                    }
-
-                    if (isset($meta->npoints)) {
-                        $feed_meta['npoints'] = $meta->npoints;
-                    }
-                    
-                    $result["feeds"][$feed_name] = $feed_meta;
-                }
-            }
-        }
-        return $result;
-    }
-    else if ($route->action == "getstats" || $route->action == "getstats2" || $route->action == "getdaily" || $route->action == "datastart") {
-
-        // enable apikey read access
-        $userid = false;
-        $public = false;
-        $apikey = "";
-        
-        if (isset($session['read']) && $session['read']) {
-            $userid = $session['userid'];
-        } else if (isset($_GET['readkey'])) {
-            $userid = $user->get_id_from_apikey($_GET['readkey']);
-        } else if ($session['public_userid']) {
-            $userid = (int) $session['public_userid'];
-            $public = true;
-        }
-    
-        $route->format = "json";
-        $app_name = urldecode(get("name",false,false));
-        $app = $appconfig->get_app_or_default($userid,$app_name,$public);
-        
-        if ($app!=false) {
-        
-            if ($app->app=="myheatpump") {
-                
-                if (isset($_GET['start']) && isset($_GET['end'])) {
-                    $start = (int) $_GET['start'];
-                    $end = (int) $_GET['end'];
-                } else if (isset($_GET['day'])) {
-                    $date = new DateTime($_GET['day']);
-                    $date->setTimezone(new DateTimeZone("Europe/London"));
-                    $date->modify("midnight");
-                    $start = $date->getTimestamp();
-                    $date->modify("+1 day");
-                    $end = $date->getTimestamp();
-                } else if (isset($_GET['month'])) {
-                    $date = new DateTime($_GET['month']);
-                    $date->setTimezone(new DateTimeZone("Europe/London"));
-                    $date->modify("midnight");
-                    $start = $date->getTimestamp();
-                    $date->modify("+1 month");
-                    $end = $date->getTimestamp();
-                } else {
-                    $start = null;
-                    $end = null;
-                }
-                                  
-                $startingpower = get('startingpower',false,100);
-                
-                require_once "Modules/feed/feed_model.php";
-                $settings['feed']['max_datapoints'] = 100000;
-                $feed = new Feed($mysqli,$redis,$settings['feed']);
-                
-                if ($route->action == "getstats2" || $route->action == "getdaily" || $route->action == "datastart") {
-                    require_once "Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_api2.php";
-                } else {
-                    require_once "Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_api.php";   
-                }
-                
-                if ($route->action == "datastart") {
-                    $route->format = "json";
-                    $result = array("start"=>0, "end"=>0);
-                    if (isset($app->config->heatpump_elec)) {
-                        $meta = $feed->get_meta($app->config->heatpump_elec);
-                        $result['start'] = $meta->start_time;
-                        $result['end'] = $meta->end_time;
-                    }
-                    if (isset($app->config->heatpump_heat)) {
-                        $meta = $feed->get_meta($app->config->heatpump_heat);
-                        if ($meta->start_time>$result['start']) $result['start'] = $meta->start_time;
-                        if ($meta->end_time<$result['end']) $result['end'] = $meta->end_time;
-                    }
-                    if (isset($app->config->start_date) && $app->config->start_date>$result['start']) {
-                        $result['start'] = $app->config->start_date*1;
-                    }
-                    if ($result['start']==0) $result['start'] = false;
-                    if ($result['end']==0) $result['end'] = false;
-                    return $result;
-                }
-                
-                if ($route->action == "getdaily") {
-                    $route->format = "text";
-                    return get_daily_stats($feed,$app,$start,$end,$startingpower*1);
-                }
-                
-                return get_heatpump_stats($feed,$app,$start,$end,$startingpower*1);
-            }
-        
-            return $app;
-        } else {
-            return array("success"=>false, "message"=>"invalid app or permissions");
-        }
-    }
-    else if ($route->action == "list" && $session['read']) {
+    if ($route->action == "list" && $session['read']) {
         $route->format = "json";
         return $appconfig->get_list($session['userid']);
     }
+
+    // List of available apps json
     else if ($route->action == "available" && $session['read']) {
         $route->format = "json";
-        return $appavail;
+        return $appconfig->get_available();
     }
+
+    // List of available apps view
+    else if ($route->action == "new" && $session['write']) {
+        $applist = $appconfig->get_list($session['userid']);
+        $route->format = "html";
+        $result .= "<link href='".$path."Modules/app/Views/css/app.css?v=".$v."' rel='stylesheet'>";
+        $appavail = $appconfig->get_available();
+        $result .= view("Modules/app/Views/app_view.php", array("apps"=>$appavail));
+        return $result;
+    }
+
+    // Add and remove apps
     else if ($route->action == "add" && $session['write']) {
         $route->format = "json";
         $appname = get("app");
+        $appavail = $appconfig->get_available();
         if (isset($appavail[$appname])) {
             return $appconfig->add($session['userid'],$appname,get("name"));
         } else {
             return "Invalid app";
         }
     }
-    else if ($route->action == "new" && $session['write']) {
-        $applist = $appconfig->get_list($session['userid']);
-        $route->format = "html";
-        $result .= "<link href='".$path."Modules/app/Views/css/app.css?v=".$v."' rel='stylesheet'>";
-        $result .= view("Modules/app/Views/app_view.php", array("apps"=>$appavail));
-        return $result;
-    }
     else if ($route->action == "remove" && $session['write']) {
         $route->format = "json";
-        return $appconfig->remove($session['userid'],get("name"));
+        return $appconfig->remove($session['userid'],get("id"));
+    }
+
+    // Update app name, public flag or config
+    else if ($route->action == "setname" && $session['write']) {
+        $route->format = "json";
+        return $appconfig->set_name($session['userid'],get('id'),get('name'));
+    }
+    else if ($route->action == "setpublic" && $session['write']) {
+        $route->format = "json";
+        return $appconfig->set_public($session['userid'],get('id'),get('public'));
     }
     else if ($route->action == "setconfig" && $session['write']) {
         $route->format = "json";
-        return $appconfig->set_config($session['userid'],get('name'),get('config'));    
+        return $appconfig->set_config($session['userid'],get('id'),get('config'));    
     }
+
+    // --------------------------------------------------------------
+
     else if ($route->action == "octopus-feed-list") {
         $route->format = "json";
         return json_decode(file_get_contents("http://emoncms.org/octopus/feed/list.json"));
@@ -372,6 +145,110 @@ function app_controller()
         $end = (float) get("end");
         $interval = (int) get("interval");
         return json_decode(file_get_contents("https://openenergymonitor.org/ukgrid/api.php?q=data&id=1&start=$start&end=$end&interval=$interval"));
+    }
+
+    // --------------------------------------------------------------
+    // App specific routes
+    // --------------------------------------------------------------
+    // Find user and app 
+    // - if read access is enabled then use the session userid
+    // - if readkey is provided then use the user id associated with the readkey
+    // - if public_userid is set then use the public_userid
+    // --------------------------------------------------------------
+    $userid = false;
+    $public = false;
+    $apikey = "";
+    $app_name = "";
+    $app = false;
+    
+    // 1. Check if read access is enabled
+    if (isset($session['read']) && $session['read']) {
+        $userid = $session['userid'];
+        if (isset($_GET['apikey'])) {
+            // fetch the apikey from the database instead of using the one provided in the url
+            $apikey = $user->get_apikey_read($session['userid']);
+        }
+    // 2. Check if readkey is provided
+    } else if (isset($_GET['readkey'])) {
+        if ($userid = $user->get_id_from_apikey($_GET['readkey'])) {
+            $apikey = $user->get_apikey_read($userid);      
+        }
+    // 3. Check if public_userid is set
+    } else if ($session['public_userid']) {
+        $userid = (int) $session['public_userid'];
+        $public = true;
+    }
+
+    // Apps can be accessed by name or by id
+    
+    // If we have a userid then we can get the app
+    if ($userid)
+    {            
+        if ($route->subaction) {
+            $app_name = $route->subaction;
+        } else {
+            $app_name = urldecode(get("name",false,false));
+        }
+        $app = $appconfig->get_app_or_default($userid,$app_name,$public);
+    }
+
+    // If we have an id then we can get the app
+    if (isset($_GET['id'])) {
+        $app = $appconfig->get_app_by_id($_GET['id']);
+
+        // If public mode is enabled then check if the app is public
+        if ($public) {
+            if (!$app->public) {
+                $app = false;
+            }
+        // If public mode is not enabled then check if the app belongs to the user
+        // and is not listed as public
+        } else {
+            if ($app->userid != $userid && !$app->public) {
+                $app = false;
+            }
+        }
+    }
+
+    if (!$app) {
+        if ($route->action == "view" || $route->action == "") {
+            return ""; // redirects to login
+        } else {
+            return array("success"=>false, "message"=>"invalid app or permissions");
+        }
+    }
+
+    // Check if the app has a specific controller
+    // e.g. myheatpump/myheatpump_controller.php
+    $app_controller_file = "Modules/app/apps/OpenEnergyMonitor/".$app->app."/".$app->app."_controller.php";
+    if (file_exists($app_controller_file)) {
+        require_once $app_controller_file;
+        $controller = $app->app."_app_controller";
+        return $controller($route,$app,$appconfig,$apikey);
+    }
+
+    // Generic app's
+    else if ($route->action == "view" || $route->action == "") {
+        $route->format = "html";
+        $result = "\n<!-- global app css and js -->";
+        $result .= "\n" . '<link href="' . $path . 'Modules/app/Views/css/app.css?v=' . $v . '" rel="stylesheet">';
+        $result .= "\n" . '<script src="' . $path . 'Modules/app/Views/js/app.js?v=' . $v . '"></script>';
+        $result .= "\n\n <!-- app specific view -->\n";
+
+        $dir = $appconfig->get_app_dir($app->app);
+        $result .= view($dir.$app->app.".php",array(
+            "id"=>$app->id,
+            "name"=>$app_name,
+            "public"=>$app->public,
+            "appdir"=>$dir, 
+            "config"=>$app->config, 
+            "apikey"=>$apikey
+        ));
+        return $result;
+    }
+    else if ($route->action == "getconfig") {
+        $route->format = "json";
+        return $app;
     }
 
     return array('content'=>EMPTY_ROUTE);

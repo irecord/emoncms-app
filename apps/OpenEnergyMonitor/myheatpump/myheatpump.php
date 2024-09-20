@@ -14,7 +14,7 @@ global $path, $session, $v;
 <script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.selection.min.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Lib/flot/date.format.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Lib/vis.helper.js?v=<?php echo $v; ?>"></script>
-<link href="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/style.css?v=37>" rel="stylesheet">
+<link href="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/style.css?v=39>" rel="stylesheet">
 
 <div style="font-family: Montserrat, Veranda, sans-serif;">
   <div id="app-block" style="display:none">
@@ -76,11 +76,17 @@ global $path, $session, $v;
         <div class="block-bound">
 
           <div class="bargraph-navigation">
+            <div class="bluenav bargraph_mode" mode="combined" style="float:left">ALL</div>
+            <div class="bluenav bargraph_mode" mode="running" style="float:left">RUN</div>
+            <div class="bluenav bargraph_mode" mode="space" style="float:left">SPACE</div>
+            <div class="bluenav bargraph_mode" mode="water" style="float:left">DHW</div>
+
+
             <div class="bluenav bargraph-alltime">ALL</div>
-            <div class="bluenav bargraph-year">YEAR</div>
-            <div class="bluenav bargraph-quarter">3 MONTHS</div>
-            <div class="bluenav bargraph-month">MONTH</div>
-            <div class="bluenav bargraph-week">WEEK</div>
+            <div class="bluenav bargraph-period" days=365>YEAR</div>
+            <div class="bluenav bargraph-period" days=90>3 MONTHS</div>
+            <div class="bluenav bargraph-period" days=30>MONTH</div>
+            <div class="bluenav bargraph-period" days=7>WEEK</div>
             <div class="bluenav bargraph-day">DAY</div>
           </div>
 
@@ -100,13 +106,18 @@ global $path, $session, $v;
         </div>
 
         <div style="background-color:#fff; padding:10px;">
-          <div id="placeholder_bound" style="width:100%; height:500px;overflow:hidden">
-            <div id="placeholder" style="height:500px"></div>
-          </div>
+            <div id="placeholder_bound" style="width:100%; height:500px;overflow:hidden; position:relative;">
+                <div id="placeholder" style="height:500px"></div>
+                <div id="overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); color:#333; display:flex; align-items:center; justify-content:center; font-size:20px;">
+                    <div id="overlay_text"></div>
+                </div>
+            </div>
         </div>
 
         <div style="background-color:#eee; color:#333">
           <div id='advanced-toggle' class='bluenav' style="display:none">SHOW DETAIL</div>
+
+          <div id='data-error' style="display:none">DATA ERROR</div>
 
           <div style="padding:10px">
             COP in window: <b id="window-cop" style="cursor:pointer"></b> <span id="window-carnot-cop"></span>
@@ -116,7 +127,7 @@ global $path, $session, $v;
         <div id="advanced-block" style="background-color:#fff; padding:10px; display:none">
           <div style="color:#000">
 
-
+            <div id="error-message" style="display:none" class="alert alert-error"></div>
 
             <table style="width:100%; color:#333;">
               <tr>
@@ -139,6 +150,11 @@ global $path, $session, $v;
                   <div class="cop-title">Water heating</div>
                   <div class="cop-value"><span class="cop_water_heating">---</span></div>
                 </td>
+
+                <td valign="top" class="show_stats_category" key="cooling" style="color:#014656; display:none">
+                  <div class="cop-title">Cooling</div>
+                  <div class="cop-value"><span class="cop_cooling">---</span></div>
+                </td>
               </tr>
             </table>
 
@@ -156,6 +172,7 @@ global $path, $session, $v;
               <tbody class="stats_category" key="when_running" style="display:none"></tbody>
               <tbody class="stats_category" key="water_heating" style="display:none"></tbody>
               <tbody class="stats_category" key="space_heating" style="display:none"></tbody>
+              <tbody class="stats_category" key="cooling" style="display:none"></tbody>
             </table>
 
             <div id="show_flow_rate_bound" style="display:none" class="advanced-options">
@@ -164,9 +181,9 @@ global $path, $session, $v;
             </div>
 
             <div id="show_cooling_bound" class="advanced-options">
-              <div style="float:right"><span id="total_negative_heat_kwh"></span> kWh (<span id="prc_negative_heat"></span>%)</div>
-              <input id="show_negative_heat" type="checkbox" class="advanced-options-checkbox">
-              <b>Show cooling / defrosts</b>
+              <div style="float:right"><span id="total_defrost_and_loss_kwh"></span> kWh (<span id="prc_defrost_and_loss"></span>%)</div>
+              <input id="show_defrost_and_loss" type="checkbox" class="advanced-options-checkbox">
+              <b>Show defrosts and other heat lost</b>
             </div>
 
             <div id="show_inst_cop_bound" class="advanced-options">
@@ -261,7 +278,7 @@ global $path, $session, $v;
               <div id="configure_standby_options" style="display:none">
                 <div class="input-prepend input-append" style="margin-top:10px; margin-bottom:0px;">
                   <span class="add-on">Starting power</span>
-                  <input type="text" style="width:50px" id="starting_power" value="100">
+                  <input type="text" style="width:50px" id="starting_power" value="150">
                   <span class="add-on">W</span>
                 </div>
               </div>
@@ -302,6 +319,70 @@ global $path, $session, $v;
                 <div class="value1"><span id="total_cop"></span></div>
               </td>
             </tr>
+
+            <!-- 
+            <tr>
+              <td style="width:33.3%; text-align:center" valign="top">
+                <div class="title1">When running electric</div>
+                <div class="value1"><span id="running_elec"></span>
+                  <div class="units1">kWh</div>
+                </div>
+              </td>
+
+              <td style="width:33.3%; text-align:center" valign="top">
+                <div class="title1">When running heat</div>
+                <div class="value1"><span id="running_heat"></span>
+                  <div class="units1">kWh</div>
+                </div>
+              </td>
+
+              <td style="width:33.3%; text-align:center" valign="top">
+                <div class="title1">When running SCOP</div>
+                <div class="value1"><span id="running_cop"></span></div>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="width:33.3%; text-align:center" valign="top">
+                <div class="title1">Space heating electric</div>
+                <div class="value1"><span id="space_elec"></span>
+                  <div class="units1">kWh</div>
+                </div>
+              </td>
+
+              <td style="width:33.3%; text-align:center" valign="top">
+                <div class="title1">Space heating heat</div>
+                <div class="value1"><span id="space_heat"></span>
+                  <div class="units1">kWh</div>
+                </div>
+              </td>
+
+              <td style="width:33.3%; text-align:center" valign="top">
+                <div class="title1">Space heating SCOP</div>
+                <div class="value1"><span id="space_cop"></span></div>
+              </td>
+            </tr>
+            <tr>
+              <td style="width:33.3%; text-align:center" valign="top">
+                <div class="title1">Water heating electric</div>
+                <div class="value1"><span id="water_elec"></span>
+                  <div class="units1">kWh</div>
+                </div>
+              </td>
+
+              <td style="width:33.3%; text-align:center" valign="top">
+                <div class="title1">Water heating heat</div>
+                <div class="value1"><span id="water_heat"></span>
+                  <div class="units1">kWh</div>
+                </div>
+              </td>
+
+              <td style="width:33.3%; text-align:center" valign="top">
+                <div class="title1">Water heating SCOP</div>
+                <div class="value1"><span id="water_cop"></span></div>
+              </td>
+            </tr>
+            -->
           </table>
         </div>
 
@@ -337,7 +418,10 @@ global $path, $session, $v;
 <script>
   var apikey = "<?php print $apikey; ?>";
   var session_write = <?php echo $session['write']; ?>;
+  config.id = <?php echo $id; ?>;
   config.name = "<?php echo $name; ?>";
+  config.public = <?php echo $public; ?>;
   config.db = <?php echo json_encode($config); ?>;
 </script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump.js?v=93"></script>
+<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump.js?v=125"></script>
+<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_process.js?v=8"></script>
