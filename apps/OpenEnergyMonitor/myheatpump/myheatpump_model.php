@@ -139,7 +139,7 @@ class MyHeatPump {
 
         // Check if processing is locked
         if (!$this->process_lock($id)) {
-            return array("success"=>false, "message"=>"Processing locked");
+            // return array("success"=>false, "message"=>"Processing locked");
         }
 
         // Get start and end time of available data
@@ -182,6 +182,10 @@ class MyHeatPump {
 
         // This should be an option to set.. for now hard coded
         $starting_power = 100;
+        if (isset($app->config->starting_power)) {
+            $starting_power = (int) $app->config->starting_power;
+            if ($starting_power<0) $starting_power = 0;
+        }
         
         // Timeout mechanism
         $timer_start = microtime(true);
@@ -240,7 +244,7 @@ class MyHeatPump {
      */
     public function format_flat_keys($stats) {
 
-        $categories = ["combined","running","space","water"];
+        $categories = ["combined","running","space","water","cooling"];
         
         $row = array();
 
@@ -268,6 +272,14 @@ class MyHeatPump {
         foreach ($stats['quality'] as $key=>$value) {
             $row["quality_".$key] = $value;
         }
+
+        // Errors
+        foreach ($stats['errors'] as $key=>$value) {
+            $row["error_".$key] = $value;
+        }
+
+        // Aux consumption
+        $row["immersion_kwh"] = $stats['immersion_kwh'];
 
         return $row;
     }
@@ -395,7 +407,7 @@ class MyHeatPump {
 
     public function process($rows,$id,$start) {
 
-        $categories = array('combined','running','space','water');
+        $categories = array('combined','running','space','water','cooling');
 
         // Totals only
         $totals = array();
@@ -422,6 +434,7 @@ class MyHeatPump {
         $totals['agile_cost'] = 0;
         $totals['cosy_cost'] = 0;
         $totals['go_cost'] = 0;
+        $totals['immersion_kwh'] = 0;
 
         // Quality
         $quality_fields = array('elec','heat','flowT','returnT','outsideT','roomT');
@@ -461,6 +474,8 @@ class MyHeatPump {
 
             $go_cost = $row->unit_rate_go * 0.01 * $totals['from_energy_feeds']['elec_kwh'];
             $totals['go_cost'] += $go_cost;
+
+            $totals['immersion_kwh'] += $row->immersion_kwh;
             
             $days++;
         }
@@ -531,6 +546,8 @@ class MyHeatPump {
         foreach ($quality_fields as $field) {
             $stats['quality_'.$field] = $quality[$field];
         }
+
+        $stats['immersion_kwh'] = $totals['immersion_kwh'];
 
         $stats['unit_rate_agile'] = null;
         $stats['unit_rate_cosy'] = null;

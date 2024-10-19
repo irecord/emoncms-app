@@ -12,9 +12,10 @@ global $path, $session, $v;
 <script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.min.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.time.min.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.selection.min.js?v=<?php echo $v; ?>"></script>
+<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.stack.min.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Lib/flot/date.format.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Lib/vis.helper.js?v=<?php echo $v; ?>"></script>
-<link href="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/style.css?v=39>" rel="stylesheet">
+<link href="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/style.css?v=40>" rel="stylesheet">
 
 <div style="font-family: Montserrat, Veranda, sans-serif;">
   <div id="app-block" style="display:none">
@@ -76,17 +77,17 @@ global $path, $session, $v;
         <div class="block-bound">
 
           <div class="bargraph-navigation">
-            <div class="bluenav bargraph_mode" mode="combined" style="float:left">ALL</div>
-            <div class="bluenav bargraph_mode" mode="running" style="float:left">RUN</div>
-            <div class="bluenav bargraph_mode" mode="space" style="float:left">SPACE</div>
-            <div class="bluenav bargraph_mode" mode="water" style="float:left">DHW</div>
-
+            <div class="bluenav bargraph_mode" mode="combined" title="Combined" style="float:left">ALL</div>
+            <div class="bluenav bargraph_mode" mode="running" title="When running" style="float:left;padding: 12px 8px 0px 7px; height: 30px; font-size:20px"><svg class="icon"><use xlink:href="#icon-play"></use></svg></div>
+            <div class="bluenav bargraph_mode" mode="space" title="Space heating" style="float:left;padding: 8px 8px 0px 7px;height: 35px; font-size:28px"><svg class="icon"><use xlink:href="#icon-radiator"></use></svg></div>
+            <div class="bluenav bargraph_mode" mode="water" title="Water heating" style="float:left;padding: 12px 8px 0px 7px;height: 30px; font-size:20px"><svg class="icon"><use xlink:href="#icon-shower"></use></svg></div>
+            <div class="bluenav bargraph_mode" mode="cooling" title="Cooling" style="float:left;padding: 12px 8px 0px 7px;height: 30px; font-size:20px"><svg class="icon"><use xlink:href="#icon-snowflake"></use></svg></div>
 
             <div class="bluenav bargraph-alltime">ALL</div>
             <div class="bluenav bargraph-period" days=365>YEAR</div>
-            <div class="bluenav bargraph-period" days=90>3 MONTHS</div>
+            <div class="bluenav bargraph-period wide" days=90>3 MONTHS</div>
             <div class="bluenav bargraph-period" days=30>MONTH</div>
-            <div class="bluenav bargraph-period" days=7>WEEK</div>
+            <div class="bluenav bargraph-period wide" days=7>WEEK</div>
             <div class="bluenav bargraph-day">DAY</div>
           </div>
 
@@ -174,6 +175,12 @@ global $path, $session, $v;
               <tbody class="stats_category" key="space_heating" style="display:none"></tbody>
               <tbody class="stats_category" key="cooling" style="display:none"></tbody>
             </table>
+
+            <div id="show_immersion_bound" style="display:none" class="advanced-options">
+              <div style="float:right"><span id="immersion_kwh"></span> kWh</div>
+              <input id="show_immersion" type="checkbox" class="advanced-options-checkbox">
+              <b>Show immersion</b>
+            </div>
 
             <div id="show_flow_rate_bound" style="display:none" class="advanced-options">
               <input id="show_flow_rate" type="checkbox" class="advanced-options-checkbox">
@@ -405,6 +412,10 @@ global $path, $session, $v;
           <p><strong class="text-white">Share publicly:</strong> Check the "public" check box if you want to share your dashboard publicly, and ensure that the associated feeds are also made public by adjusting their settings on the feeds page.</p>
           <p><strong class="text-white">Start date:</strong> To modify the start date for cumulative total electricity consumption, heat output and SCOP, input a unix timestamp corresponding to your desired starting date and time.</p>
 
+
+          <button class="btn btn-danger mt-3" id="clear-daily-data" style="display:none">Reload daily data</button>
+
+
         </div>
       </div>
       <div class="span5 app-config pt-3"></div>
@@ -423,5 +434,9 @@ global $path, $session, $v;
   config.public = <?php echo $public; ?>;
   config.db = <?php echo json_encode($config); ?>;
 </script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump.js?v=125"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_process.js?v=8"></script>
+
+<?php $v=156; ?>
+<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_process.js?v=<?php echo $v; ?>"></script>
+<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_powergraph.js?v=<?php echo $v; ?>"></script>
+<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_bargraph.js?v=<?php echo $v; ?>"></script>
+<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump.js?v=<?php echo $v; ?>"></script>
