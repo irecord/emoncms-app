@@ -1199,17 +1199,15 @@ function getdataremote(id,start,end,interval)
     if (id != 10001 && id != 10002)
         return getdataremote_feed(id,start,end,interval);
 
-    const li = 12.11;
-    const di = 24.71;
-    const hi = 35.82;
-    const ol = 4.707;
+    const li = 12.691;
+    const di = 25.878;
+    const hi = 38.817;
     const od = 15/1.05;
-    const oh = 22.386;
 
     var data = [];
     //          0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
     var imp = [di,di,di,di,li,li,li,di,di,di,di,di,di,li,li,li,hi,hi,hi,di,di,di,li,li];
-    var exp = [od,od,od,od,ol,ol,ol,od,od,od,od,od,od,ol,ol,ol,oh,oh,oh,od,od,od,ol,ol];
+    var exp = [od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od];
 
     do {
         var value = 0;
