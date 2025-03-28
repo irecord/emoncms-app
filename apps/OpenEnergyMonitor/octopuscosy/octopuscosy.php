@@ -1199,9 +1199,10 @@ function getdataremote(id,start,end,interval)
     if (id != 10001 && id != 10002)
         return getdataremote_feed(id,start,end,interval);
 
-    const li = 12.691;
-    const di = 25.878;
-    const hi = 38.817;
+    // Jan - March 2025 : 28.5p/kw/h
+    const li = 14.267;
+    const di = 29.092;
+    const hi = 43.638;
     const od = 15/1.05;
 
     var data = [];
