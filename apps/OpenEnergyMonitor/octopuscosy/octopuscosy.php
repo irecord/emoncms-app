@@ -1199,16 +1199,17 @@ function getdataremote(id,start,end,interval)
     if (id != 10001 && id != 10002)
         return getdataremote_feed(id,start,end,interval);
 
-    // Jan - March 2025 : 28.5p/kw/h
-    const li = 14.267;
-    const di = 29.092;
-    const hi = 43.638;
+    // Jan - Mar 2025 : 20.6p/kw/h
+    // Apr - Jun 2025 : 19.3p/kw/h
+    const li = 12.901;
+    const di = 26.307;
+    const hi = 39.461;
     const od = 15/1.05;
 
     var data = [];
     //          0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
     var imp = [di,di,di,di,li,li,li,di,di,di,di,di,di,li,li,li,hi,hi,hi,di,di,di,li,li];
-    var exp = [od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od];
+    //var exp = [od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od,od];
 
     do {
         var value = 0;
