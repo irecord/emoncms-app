@@ -20,7 +20,7 @@ global $path, $session, $v;
 
 
 <?php $v += 8; ?>
-<link href="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/octopus/tariff_explorer.css?v=<?php echo $v; ?>" rel="stylesheet">
+<link href="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/octopusflux/tariff_explorer.css?v=<?php echo $v; ?>" rel="stylesheet">
 
 <div style="font-family: Montserrat, Veranda, sans-serif;">
     <div id="app-block" style="display:none">
@@ -189,5 +189,5 @@ global $path, $session, $v;
 </script>
 
 <!-- include tariff_explorer.js -->
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/octopus/tariff_explorer.js?v=<?php echo time(); ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/octopus/profile.js?v=<?php echo time(); ?>"></script>
+<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/octopusflux/tariff_explorer.js?v=<?php echo time(); ?>"></script>
+<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/octopusflux/profile.js?v=<?php echo time(); ?>"></script>
