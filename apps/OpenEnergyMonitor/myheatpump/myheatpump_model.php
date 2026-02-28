@@ -7,13 +7,15 @@ class MyHeatPump {
     private $feed;
     private $appconfig;
     private $schema;
+    private $user_timezone;
 
     // constructor
-    function __construct($mysqli,$redis,$feed,$appconfig) {
+    function __construct($mysqli,$redis,$feed,$appconfig,$user_timezone = 'Europe/London') {
         $this->mysqli = $mysqli;
         $this->redis = $redis;
         $this->feed = $feed;
         $this->appconfig = $appconfig;
+        $this->user_timezone = $user_timezone;
 
         // Load schema
         $schema = array();
@@ -123,6 +125,25 @@ class MyHeatPump {
         $this->redis->del($lock_key);
     }
 
+    public function get_stats($id, $start, $end) {
+        $id = (int) $id;
+
+        // Load app config
+        $app = $this->appconfig->get_app_by_id($id);
+
+        $start = (int) $start;
+        $end = (int) $end;
+
+        // This should be an option to set.. for now hard coded
+        $starting_power = 100;
+        if (isset($app->config->starting_power)) {
+            $starting_power = (int) $app->config->starting_power;
+            if ($starting_power<0) $starting_power = 0;
+        }
+
+        return get_heatpump_stats($this->feed,$app,$start,$end,$starting_power);
+    }
+
     /**
      * Process daily data
      * 
@@ -165,7 +186,7 @@ class MyHeatPump {
 
         // Calculate start and end time aligned to midnight
         $date = new DateTime();
-        $date->setTimezone(new DateTimeZone('Europe/London'));
+        $date->setTimezone(new DateTimeZone($this->user_timezone));
 
         $date->setTimestamp($end_time);
         $date->modify("midnight");
@@ -198,7 +219,7 @@ class MyHeatPump {
         while ($time<$end) {
             
             // Get stats for the day
-            $stats = get_heatpump_stats($this->feed,$app,$time,$time+(3600*24),$starting_power);
+            $stats = get_heatpump_stats($this->feed,$app,$time,$time+(3600*24),$starting_power,$this->user_timezone);
 
             // Translate for database field compatibility
             $row = $this->format_flat_keys($stats);
@@ -281,6 +302,25 @@ class MyHeatPump {
         // Aux consumption
         $row["immersion_kwh"] = $stats['immersion_kwh'];
 
+        // Weighted averages
+        if ($stats['stats']['weighted']!=false) {
+            $row["weighted_flowT"] = $stats['stats']['weighted']['flowT'];
+            $row["weighted_outsideT"] = $stats['stats']['weighted']['outsideT'];
+            $row["weighted_flowT_minus_outsideT"] = $stats['stats']['weighted']['flowT_minus_outsideT'];
+            $row["weighted_flowT_minus_returnT"] = $stats['stats']['weighted']['flowT_minus_returnT'];
+            $row["weighted_elec"] = $stats['stats']['weighted']['elec'];
+            $row["weighted_heat"] = $stats['stats']['weighted']['heat'];
+            $row["weighted_prc_carnot"] = $stats['stats']['weighted']['prc_carnot'];
+            $row["weighted_kwh_elec"] = $stats['stats']['weighted']['kwh_elec'];
+            $row["weighted_kwh_heat"] = $stats['stats']['weighted']['kwh_heat'];
+            $row["weighted_kwh_heat_running"] = $stats['stats']['weighted']['kwh_heat_running'];
+            $row["weighted_kwh_elec_running"] = $stats['stats']['weighted']['kwh_elec_running'];
+            $row["weighted_kwh_carnot_elec"] = $stats['stats']['weighted']['kwh_carnot_elec'];
+            $row["weighted_time_on"] = $stats['stats']['weighted']['time_on'];
+            $row["weighted_time_total"] = $stats['stats']['weighted']['time_total'];
+            $row["weighted_cycle_count"] = $stats['stats']['weighted']['cycle_count'];
+        }
+
         return $row;
     }
 
@@ -296,20 +336,22 @@ class MyHeatPump {
         
         $result = array("start"=>0, "end"=>0);
 
-        if (isset($app->config->heatpump_elec)) {
+        if (isset($app->config->heatpump_elec) && $this->feed->exist($app->config->heatpump_elec)) {
             $meta = $this->feed->get_meta($app->config->heatpump_elec);
             $result['start'] = $meta->start_time;
             $result['end'] = $meta->end_time;
         }
 
-        if (isset($app->config->heatpump_heat)) {
+        if (isset($app->config->heatpump_heat) && $this->feed->exist($app->config->heatpump_heat)) {
             $meta = $this->feed->get_meta($app->config->heatpump_heat);
             if ($meta->start_time>$result['start']) $result['start'] = $meta->start_time;
             if ($meta->end_time<$result['end']) $result['end'] = $meta->end_time;
         }
 
-        if (isset($app->config->start_date) && $app->config->start_date>$result['start']) {
-            $result['start'] = $app->config->start_date*1;
+        if (isset($app->config->start_date) && $app->config->start_date !== null && $app->config->start_date>$result['start']) {
+            if (is_numeric($app->config->start_date)) {
+                $result['start'] = $app->config->start_date*1;
+            }
         }
 
         if ($result['start']==0) $result['start'] = false;
@@ -564,5 +606,16 @@ class MyHeatPump {
         if ($stats['unit_rate_go'] === 0) $stats['unit_rate_go'] = null;
 
         return $stats;
+    }
+
+    public function get_weightedaverages($id, $start, $end) {
+        $id = (int) $id;
+        $start = (int) $start;
+        $end = (int) $end;
+
+        // Load app config
+        $app = $this->appconfig->get_app_by_id($id);
+
+        return process_weighted_averages($this->feed,$app,$start,$end);
     }
 }

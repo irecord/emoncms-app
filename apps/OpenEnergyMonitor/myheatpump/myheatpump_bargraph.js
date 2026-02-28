@@ -133,6 +133,46 @@ function bargraph_load(start, end) {
                     $(".bargraph_mode[mode='cooling']").hide();
                 }
 
+                /*
+                var weighted_flowT_sum = 0;
+                var weighted_outsideT_sum = 0;
+                var total_kwh_heat = 0;
+
+                var total_kwh_elec_running = 0;
+                var total_kwh_heat_running = 0;
+                var total_kwh_carnot_elec = 0;
+
+                for (var z in daily_data["weighted_flowT"]) {
+                    let kwh_heat = daily_data["weighted_kwh_heat"][z][1];
+                    let flowT = daily_data["weighted_flowT"][z][1];
+                    let outsideT = daily_data["weighted_outsideT"][z][1];
+
+                    let kwh_elec_running = daily_data["weighted_kwh_elec_running"][z][1];
+                    let kwh_heat_running = daily_data["weighted_kwh_heat_running"][z][1];
+                    let kwh_carnot_elec = daily_data["weighted_kwh_carnot_elec"][z][1];
+
+                    weighted_flowT_sum += flowT * kwh_heat;
+                    weighted_outsideT_sum += outsideT * kwh_heat;
+                    total_kwh_heat += kwh_heat;
+
+                    total_kwh_elec_running += kwh_elec_running;
+                    total_kwh_heat_running += kwh_heat_running;
+                    total_kwh_carnot_elec += kwh_carnot_elec;
+
+                }
+
+                var wa_prc_carnot = 0;
+                if (total_kwh_elec_running > 0 && total_kwh_carnot_elec > 0) {
+                    wa_prc_carnot = 100 * (total_kwh_heat_running / total_kwh_elec_running) / (total_kwh_heat_running / total_kwh_carnot_elec);
+                }
+
+                var weighted_flowT_mean = weighted_flowT_sum / total_kwh_heat;
+                var weighted_outsideT_mean = weighted_outsideT_sum / total_kwh_heat;
+                console.log("weighted_flowT_mean", weighted_flowT_mean);
+                console.log("weighted_outsideT_mean", weighted_outsideT_mean);
+                console.log("wa_prc_carnot", wa_prc_carnot);
+                console.log("total_kwh_heat", total_kwh_heat);
+                */
             }
         });
     } else {
@@ -270,7 +310,12 @@ function bargraph_draw() {
             }
         }
 
-        if (total_error_air > 0) {
+        let prc_error_air_kwh = 0;
+        if (elec_kwh_in_window > 0) {
+            prc_error_air_kwh = (total_error_air_elec_kwh / elec_kwh_in_window) * 100;
+        }
+
+        if (prc_error_air_kwh >= 1) {
             var error_div = $("#data-error");
             error_div.show();
             error_div.attr("title", "Heat meter air issue detected for " + (total_error_air / 60).toFixed(0) + " minutes (" + (total_error_air_elec_kwh).toFixed(1) + " kWh)");

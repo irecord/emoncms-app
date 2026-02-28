@@ -14,15 +14,25 @@ defined('EMONCMS_EXEC') or die('Restricted access');
 
 function myheatpump_app_controller($route,$app,$appconfig,$apikey)
 {
-    global $path, $session, $settings, $mysqli, $redis;
-    $v = 1;
+    global $path, $session, $settings, $mysqli, $redis, $user;
+    $v = 2;
+
+    if (isset($app->userid) && !$user_timezone = $user->get_timezone($app->userid)) {
+        $user_timezone = 'Europe/London';
+    }
+    if (is_numeric($user_timezone)) $user_timezone = "Europe/London";
+    // if timezone UTC set to Europe/London
+    if ($user_timezone == "UTC") $user_timezone = "Europe/London";
 
     require_once "Modules/feed/feed_model.php";
     $settings['feed']['max_datapoints'] = 100000;
+    $settings['feed']['max_datapoints'] = 1200000;
+
     $feed = new Feed($mysqli,$redis,$settings['feed']);
     require_once "Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_process.php";
+    require_once "Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_waft.php";
     require_once "Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_model.php";
-    $myheatpump = new MyHeatPump($mysqli,$redis,$feed,$appconfig);
+    $myheatpump = new MyHeatPump($mysqli,$redis,$feed,$appconfig, $user_timezone);
 
     if ($route->action == "view" || $route->action == "") {
         $route->format = "html";
@@ -66,7 +76,9 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
                 "heatpump_outsideT",
                 "heatpump_dhw",
                 "heatpump_ch",
-                "heatpump_targetT"
+                "heatpump_targetT",
+                "heatpump_dhwT",
+                "heatpump_dhwTargetT",
             );
 
             require_once "Modules/feed/feed_model.php";
@@ -80,7 +92,7 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
                     
                     $feed_meta = array();
                     $meta = $feed->get_meta($feedid);
-                    
+                                        
                     $feed_meta['feedid'] = $feedid;
                     
                     if (isset($meta->start_time)) {
@@ -97,6 +109,10 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
 
                     if (isset($meta->npoints)) {
                         $feed_meta['npoints'] = $meta->npoints;
+                    }
+                    
+                    if ($unit = $redis->hget("feed:$feedid","unit")) {
+                       $feed_meta['unit'] = $unit;
                     }
                     
                     $result["feeds"][$feed_name] = $feed_meta;
@@ -116,6 +132,23 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
         $start = (int) get('start',true);
         $end = (int) get('end',true);
         return $myheatpump->get_daily($app->id,$start,$end);
+    }
+
+    else if ($route->action == "getstats") {
+        $route->format = "json";
+        $start = (int) get('start',false);
+        $end = (int) get('end',false);
+
+        if (!$start || !$end) {
+            $date = new DateTime();
+            $date->setTimezone(new DateTimeZone($user_timezone));
+            $date->setTime(0,0,0);
+            $end = $date->getTimestamp();
+            $date->modify("-1 day");
+            $start = $date->getTimestamp();
+        }
+
+        return $myheatpump->get_stats($app->id,$start,$end);
     }
 
     // Get totals
@@ -160,9 +193,18 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
     // Clear daily data
     else if ($route->action == "cleardaily") {
         $route->format = "json";
+        $app_id = (int) $app->id;
+        
+        if (isset($settings['app']) && isset($settings['app']['clearkey'])) {
+            if (isset($_GET['clearkey']) && $_GET['clearkey'] == $settings['app']['clearkey']) {
+                $mysqli->query("DELETE FROM myheatpump_daily_stats WHERE `id`='".$app_id."'");
+                return array("success"=>true);        
+            }
+        }
+        
         if (!$session["write"]) return array("success"=>false, "message"=>"Permission denied");
         if ($app->userid != $session["userid"]) return array("success"=>false, "message"=>"Permission denied");
-        $mysqli->query("DELETE FROM myheatpump_daily_stats WHERE `id`='".$app->id."'");
+        $mysqli->query("DELETE FROM myheatpump_daily_stats WHERE `id`='".$app_id."'");
         return array("success"=>true);
     }
 
@@ -174,4 +216,29 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
         $mysqli->query("DELETE FROM myheatpump_daily_stats WHERE `id`='".$app->id."' AND `timestamp`>='".(time()-60*24*3600)."'");
         return array("success"=>true);
     }
+
+    else if ($route->action == "weightedaverages") {
+        $route->format = "json";
+        $start = (int) get('start',false);
+        $end = (int) get('end',false);
+
+        if (!$start || !$end) {
+            $date = new DateTime();
+            // Europe/London is UTC+1
+            $date->setTimezone(new DateTimeZone($user_timezone));
+            // Set end to midnight start of today
+            $date->setTime(0, 0, 0);
+            $end = $date->getTimestamp();
+            // start to 1 month ago
+            $date->modify('-1 year');
+            $start = $date->getTimestamp();         
+        }
+   
+        if ($end<$start) {
+            return array("success"=>false, "message"=>"End date is before start date");
+        }
+
+        return $myheatpump->get_weightedaverages($app->id,$start,$end);
+    }
+
 }

@@ -24,8 +24,13 @@ function process_error_data($data, $interval, $starting_power) {
         }
     } else {
         $data["heatpump_error"] = [];
+        
         // Heat meter error auto detection
         if (isset($data["heatpump_elec"]) && isset($data["heatpump_heat"]) && isset($data["heatpump_flowT"]) && isset($data["heatpump_returnT"])) {
+        
+            if ($data["heatpump_heat"]==false || $data["heatpump_flowT"]==false || $data["heatpump_returnT"]==false) {
+                return array("air" => 0, "air_kwh" => 0);
+            }
 
             $error_state = 0;
             $error_time = 0;
@@ -135,20 +140,19 @@ function auto_detect_cooling($data, $interval) {
     return $data_heatpump_cooling;
 }
 
-function get_heatpump_stats($feed,$app,$start,$end,$starting_power) {
+function get_heatpump_stats($feed,$app,$start,$end,$starting_power,$timezone = 'Europe/London') {
 
     // --------------------------------------------------------------------------------------------------------------    
     // Validate params
     // --------------------------------------------------------------------------------------------------------------
     if ($end===null || $start===null) {
         $date = new DateTime();
-        $date->setTimezone(new DateTimeZone("Europe/London"));
+        $date->setTimezone(new DateTimeZone($timezone));
         $date->modify("midnight");
         $end = $date->getTimestamp();
         $date->modify("-30 day");
         $start = $date->getTimestamp();
     } else {
-        $timezone = 'Europe/London';
         $start = convert_time($start,$timezone);
         $end = convert_time($end,$timezone);
     }
@@ -182,7 +186,7 @@ function get_heatpump_stats($feed,$app,$start,$end,$starting_power) {
     foreach ($feeds as $key) {
         $data[$key] = false;
         if (isset($app->config->$key) && $app->config->$key>0) {   
-            $data[$key] = $feed->get_data($app->config->$key,$start,$end-$interval,$interval,1,"Europe/London","notime");
+            $data[$key] = $feed->get_data($app->config->$key,$start,$end-$interval,$interval,1,$timezone,"notime");
             $data[$key] = remove_null_values($data[$key],$interval);
         }
     }
@@ -220,6 +224,8 @@ function get_heatpump_stats($feed,$app,$start,$end,$starting_power) {
     }
     
     $cop_stats["combined"]["cooling_kwh"] = process_defrosts($data,$interval);
+
+    $cop_stats["weighted"] = process_weighted_average($data, $interval);
 
     $starts_result = compressor_starts($data, $interval, $starting_power);
     
@@ -318,7 +324,9 @@ function process_stats($data, $interval, $starting_power) {
 
         $dhw = false;
         if ($dhw_enable) {
-            $dhw = $data["heatpump_dhw"][$z];
+            if (isset($data["heatpump_dhw"][$z])) {
+                $dhw = $data["heatpump_dhw"][$z];
+            }
         }
 
         $cool = false;
@@ -454,6 +462,8 @@ function get_quality($data) {
     if (!is_array($data)) return 0;
     $count = count($data);
     if ($count<1) return 0;
+
+    if (!array_key_exists(0, $data)) return 0;
     
     $null_count = 0;
     for ($pos = 0; $pos < $count; $pos++) {
@@ -506,7 +516,9 @@ function calculate_window_cops($data, $interval, $starting_power) {
 
         $dhw = false;
         if ($dhw_enable) {
-            $dhw = $data["heatpump_dhw"][$z];
+            if (isset($data["heatpump_dhw"][$z])) {
+                $dhw = $data["heatpump_dhw"][$z];
+            }
         }
 
         $cool = false;
@@ -589,6 +601,11 @@ function carnot_simulator($data, $starting_power) {
     if (isset($data["heatpump_dhw"]) && $data["heatpump_dhw"] != false) {
         $dhw_enable = true;
     }
+    
+    $cooling_enable = false;
+    if (isset($data["heatpump_cooling"]) && $data["heatpump_cooling"] != false) {
+        $cooling_enable = true;
+    }
 
     $condensing_offset = 2;
     $evaporator_offset = -6;
@@ -613,8 +630,13 @@ function carnot_simulator($data, $starting_power) {
         $flowT = $data["heatpump_flowT"][$z];
         $returnT = $data["heatpump_returnT"][$z];
         
-        if ($data["heatpump_outsideT"][$z] !== null) {
+        if (isset($data["heatpump_outsideT"][$z]) && $data["heatpump_outsideT"][$z] !== null) {
             $ambientT = $data["heatpump_outsideT"][$z];
+        }
+        
+        $cool = false;
+        if ($cooling_enable && isset($data["heatpump_cooling"][$z])) {
+            $cool = $data["heatpump_cooling"][$z];
         }
 
         // if any of the values are null, skip this iteration
@@ -622,9 +644,17 @@ function carnot_simulator($data, $starting_power) {
             continue;
         }
         
+        if ($cool) {
+            // cooling is negative heat
+            // invert here so we can sum it with the heat
+            $heat = -1 * $heat;
+        }
+        
         $dhw = false;
         if ($dhw_enable) {
-            $dhw = $data["heatpump_dhw"][$z];
+            if (isset($data["heatpump_dhw"][$z])) {
+                $dhw = $data["heatpump_dhw"][$z];
+            }
         }
 
         $a = $flowT + $condensing_offset + 273;
@@ -643,7 +673,7 @@ function carnot_simulator($data, $starting_power) {
 
             $DT = $flowT - $returnT;
 
-            if ($DT<-0.2) {
+            if ($DT<-0.2 && $cool === false) {
                 $ideal_carnot_heat *= -1;
             }
         
@@ -801,3 +831,189 @@ function process_aux($data, $interval) {
     }
     return number_format($immersion_kwh,3,'.','')*1;
 }
+
+// Weighted average calculation
+function process_weighted_average($data, $interval) {
+    if (!isset($data["heatpump_elec"])) return false;
+    if (!isset($data["heatpump_heat"])) return false;
+    if (!isset($data["heatpump_flowT"])) return false;
+    if (!isset($data["heatpump_returnT"])) return false;
+    if (!isset($data["heatpump_outsideT"])) return false;
+
+    if ($data["heatpump_elec"]==false) return false;
+    if ($data["heatpump_heat"]==false) return false;
+    if ($data["heatpump_flowT"]==false) return false;
+    if ($data["heatpump_returnT"]==false) return false;
+    if ($data["heatpump_outsideT"]==false) return false;
+    
+    $cooling_enable = false;
+    if (isset($data["heatpump_cooling"]) && $data["heatpump_cooling"] != false) {
+        $cooling_enable = true;
+    }
+    
+    $flowT_weighted_sum = 0;
+    $elec_weighted_sum = 0;
+    $heat_weighted_sum = 0;
+    $flowT_minus_outsideT_weighted_sum = 0;
+    $outsideT_weighted_sum = 0;
+    $dt_weighted_sum = 0;
+    $kwh_heat = 0;
+    $kwh_elec = 0;
+    $kwh_carnot_elec = 0;
+
+    $time_on = 0;
+    $time_total = 0;
+    $cycle_count = 0;
+
+    $kwh_elec_running = 0;
+    $kwh_heat_running = 0;
+    
+    $cycle_state = 0;
+
+    $power_to_kwh = 1.0 * $interval / 3600000.0;
+
+    $outsideT_available = false;
+    if (isset($data["heatpump_outsideT"]) && is_array($data["heatpump_outsideT"])) {
+        $outsideT_available = true;
+    }
+
+    foreach ($data["heatpump_elec"] as $z => $value) {
+        $elec = $data["heatpump_elec"][$z];
+        $heat = $data["heatpump_heat"][$z];
+        $flowT = $data["heatpump_flowT"][$z];
+        $returnT = $data["heatpump_returnT"][$z];
+        $outsideT = null;
+
+        $cool = false;
+        if ($cooling_enable && isset($data["heatpump_cooling"][$z])) {
+            $cool = $data["heatpump_cooling"][$z];
+        }
+
+        if ($outsideT_available) {
+            if (isset($data["heatpump_outsideT"][$z])) {
+                $outsideT = $data["heatpump_outsideT"][$z];
+            }
+        }
+
+        // if any of the values are null, skip this iteration
+        if ($elec === null || $heat === null || $flowT === null || $returnT === null || $outsideT === null) {
+            continue;
+        }
+
+        if ($cool) {
+            // cooling is negative heat
+            // invert here so we can sum it with the heat
+            $heat = -1 * $heat;
+        }
+        
+        // If heat is still below zero, these are defrosts or blips where that break down weighted average calculations
+        if ($heat<0) {
+            continue;
+        }
+
+        $dt = $flowT - $returnT;
+
+        // Calculate ideal carnot efficiency
+        $ideal_carnot = 0;
+        if ($outsideT !== null) {
+            $condensor = $flowT + 2 + 273.15;
+            $evaporator = $outsideT - 6 + 273.15;
+            $carnot_dt = $condensor - $evaporator;
+            if ($carnot_dt>0) {
+                $ideal_carnot = $condensor / $carnot_dt;
+            }
+        }
+    
+        // Calculate COP
+        $cop = 0;
+        if ($elec>0 && $heat>0) {
+            $cop = $heat / $elec;
+        }
+
+        // Calculate % of carnot efficiency
+        $prc_carnot = 0;
+        if ($ideal_carnot>0) {
+            $prc_carnot = $cop / $ideal_carnot;
+        }
+
+        $flowT_weighted_sum += $heat * $flowT * $power_to_kwh;
+        $elec_weighted_sum += $elec * $elec * $power_to_kwh;
+        $heat_weighted_sum += $heat * $heat * $power_to_kwh;
+        $dt_weighted_sum += $heat * $dt * $power_to_kwh;
+        $outsideT_weighted_sum += $heat * $outsideT * $power_to_kwh;
+        $flowT_minus_outsideT_weighted_sum += $heat * ($flowT-$outsideT) * $power_to_kwh;
+
+        if ($dt>1 && $heat>0 && $ideal_carnot>0) {
+            if ($cycle_state == 0) {
+                $cycle_count++;
+            }
+            $cycle_state = 1;
+
+            // Calulate predicted elec consumption based on carnot efficiency
+            $kwh_carnot_elec += ($heat / $ideal_carnot) * $power_to_kwh;
+            // Calculate actual elec consumption
+            $kwh_elec_running += $elec * $power_to_kwh;
+            $kwh_heat_running += $heat * $power_to_kwh;
+
+            $time_on += $interval;
+        } else {
+            $cycle_state = 0;
+        }
+
+        // Calculate total kwh
+        $kwh_heat += $heat * $power_to_kwh;
+        $kwh_elec += $elec * $power_to_kwh;
+
+        $time_total += $interval;
+
+    }
+
+    $waft = null;
+    $waot = null;
+    $wafmo = null;
+    $wadt = null;
+    $waelec = null;
+    $waheat = null;
+
+    // Calculate weighted averages
+    if ($kwh_heat>0) {
+        $waft = $flowT_weighted_sum/$kwh_heat;
+        $waot = $outsideT_weighted_sum/$kwh_heat;
+        $wafmo = $flowT_minus_outsideT_weighted_sum/$kwh_heat;
+        $wadt = $dt_weighted_sum/$kwh_heat;
+        $waheat = $heat_weighted_sum/$kwh_heat;
+    }
+
+    $cop = null;
+    if ($kwh_elec>0) {
+        $waelec = $elec_weighted_sum/$kwh_elec;
+        $cop = $kwh_heat/$kwh_elec;
+    }
+
+
+    $wa_prc_carnot = 0;
+    if ($kwh_elec_running>0 && $kwh_carnot_elec>0) {
+        $wa_prc_carnot = 100 * ($kwh_heat_running / $kwh_elec_running) / ($kwh_heat_running / $kwh_carnot_elec);
+    }
+
+
+    return array(
+        "flowT" => $waft,
+        "outsideT" => $waot,
+        "flowT_minus_outsideT" => $wafmo,
+        "flowT_minus_returnT" => $wadt,
+        "elec" => $waelec,
+        "heat" => $waheat,
+        "prc_carnot" => $wa_prc_carnot,
+        "kwh_elec" => $kwh_elec,
+        "kwh_heat" => $kwh_heat,
+        "cop" => $cop,
+        "kwh_heat_running" => $kwh_heat_running,
+        "kwh_elec_running" => $kwh_elec_running,
+        "kwh_carnot_elec" => $kwh_carnot_elec,
+        "time_on" => $time_on,
+        "time_total" => $time_total,
+        "cycle_count" => $cycle_count
+    );
+}
+

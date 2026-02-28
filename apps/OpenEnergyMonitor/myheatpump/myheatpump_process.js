@@ -184,16 +184,24 @@ function process_stats() {
     stats.water_heating = {};
     stats.cooling = {};
 
+    var unit_dhw = config.app.heatpump_dhwT_unit.value || '°C';
+    var name_dhw = (unit_dhw == '°C') ? "DHW Temperature" : "DHW Charge"; 
+    var name_dhw_target = (unit_dhw == '°C') ? "DHW target Temperature" : "DHW Target Charge"; 
+
+
     var feed_options = {
-        "heatpump_elec": { name: "Electric consumption", unit: "W", dp: 0 },
-        "heatpump_heat": { name: "Heat output", unit: "W", dp: 0 },
+        "heatpump_elec": { name: "HP electric consumption", unit: "W", dp: 0 },
+        "heatpump_heat": { name: "HP heat output", unit: "W", dp: 0 },
+        "immersion_elec": { name: "Immersion/backup", unit: "W", dp: 0 },
         "heatpump_heat_carnot": { name: "Simulated heat output", unit: "W", dp: 0 },
         "heatpump_flowT": { name: "Flow temperature", unit: "°C", dp: 1 },
         "heatpump_returnT": { name: "Return temperature", unit: "°C", dp: 1 },
         "heatpump_outsideT": { name: "Outside temperature", unit: "°C", dp: 1 },
         "heatpump_roomT": { name: "Room temperature", unit: "°C", dp: 1 },
         "heatpump_targetT": { name: "Target temperature", unit: "°C", dp: 1 },
-        "heatpump_flowrate": { name: "Flow rate", unit: "", dp: 3 }
+        "heatpump_flowrate": { name: "Flow rate", unit: "", dp: 3 },
+        "heatpump_dhwT": { name: name_dhw, unit: unit_dhw, dp: 1 },
+        "heatpump_dhwTargetT": { name: name_dhw_target, unit: unit_dhw, dp: 1 }
     }
 
     var keys = [];
@@ -335,7 +343,7 @@ function process_stats() {
     
     // Standby energy
     var standby_kwh = 0;
-    if (stats['when_running']['heatpump_elec'].kwh != null) {
+    if (stats['when_running']['heatpump_elec'] != undefined && stats['when_running']['heatpump_elec'].kwh != null) {
         standby_kwh = stats['combined']['heatpump_elec'].kwh - stats['when_running']['heatpump_elec'].kwh;
     }
     $("#standby_kwh").html(standby_kwh.toFixed(3));
@@ -523,17 +531,23 @@ function carnot_simulator() {
         var ambientT = 0;
 
         var histogram = {};
+        
+        var heat_enabled = true;
+        if (data["heatpump_heat"] == undefined) heat_enabled = false;
 
         for (var z in data["heatpump_elec"]) {
 
             let time = data["heatpump_elec"][z][0];
             let power = data["heatpump_elec"][z][1];
 
-            let heat = data["heatpump_heat"][z][1];
+            let heat = null; 
+            if (heat_enabled) {
+                heat = data["heatpump_heat"][z][1];
+            }
             let flowT = data["heatpump_flowT"][z][1];
             let returnT = data["heatpump_returnT"][z][1];
 
-            if (power == null || heat == null || flowT == null || returnT == null) {
+            if (power == null || (heat_enabled && heat == null) || flowT == null || returnT == null) {
                 data["heatpump_heat_carnot"][z] = [time, null];
                 data["sim_flow_rate"][z] = [time, null];
                 continue;
@@ -610,9 +624,11 @@ function carnot_simulator() {
         }
 
         if (show_as_prc_of_carnot) {
-            let prc_of_carnot = (100 * stats['combined']['heatpump_heat'].mean / ideal_carnot_heat_mean).toFixed(1);
-            $("#window-carnot-cop").html("(<b>" + prc_of_carnot + "%</b> of Carnot)");
-            $("#heatpump_factor").val(prc_of_carnot * 0.01)
+            if (stats['combined']['heatpump_heat']!=undefined) {
+                let prc_of_carnot = (100 * stats['combined']['heatpump_heat'].mean / ideal_carnot_heat_mean).toFixed(1);
+                $("#window-carnot-cop").html("(<b>" + prc_of_carnot + "%</b> of Carnot)");
+                $("#heatpump_factor").val(prc_of_carnot * 0.01);
+            }
         } else {
             $("#window-carnot-cop").html("(Simulated: <b>" + (practical_carnot_heat_mean / stats['combined']['heatpump_elec'].mean).toFixed(2) + "</b>)");
         }

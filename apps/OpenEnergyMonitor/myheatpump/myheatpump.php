@@ -15,7 +15,8 @@ global $path, $session, $v;
 <script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.stack.min.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Lib/flot/date.format.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Lib/vis.helper.js?v=<?php echo $v; ?>"></script>
-<link href="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/style.css?v=40>" rel="stylesheet">
+<script type="text/javascript" src="<?php echo $path; ?>Lib/misc/clipboard.js?v=<?php echo $v; ?>"></script>
+<link href="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/style.css?v=49>" rel="stylesheet">
 
 <div style="font-family: Montserrat, Veranda, sans-serif;">
   <div id="app-block" style="display:none">
@@ -120,6 +121,8 @@ global $path, $session, $v;
 
           <div id='data-error' style="display:none">DATA ERROR</div>
 
+          <div id="emitter-spec-volume" style="display:none"></div>
+
           <div style="padding:10px">
             COP in window: <b id="window-cop" style="cursor:pointer"></b> <span id="window-carnot-cop"></span>
           </div>
@@ -186,7 +189,10 @@ global $path, $session, $v;
               <input id="show_flow_rate" type="checkbox" class="advanced-options-checkbox">
               <b>Show flow rate</b>
             </div>
-
+            <div id="show_dhw_temp_bound" style="display:none" class="advanced-options">
+              <input id="show_dhw_temp" type="checkbox" class="advanced-options-checkbox">
+              <b>Show DHW temperature/charge</b>
+            </div>
             <div id="show_cooling_bound" class="advanced-options">
               <div style="float:right"><span id="total_defrost_and_loss_kwh"></span> kWh (<span id="prc_defrost_and_loss"></span>%)</div>
               <input id="show_defrost_and_loss" type="checkbox" class="advanced-options-checkbox">
@@ -261,23 +267,48 @@ global $path, $session, $v;
               <input id="emitter_spec_enable" type="checkbox" class="advanced-options-checkbox">
               <b>Calculate emitter spec and system volume</b>
               <div id="emitter_spec_options" style="margin-top:10px; display:none">
-                <p>1. Select period of steady state operation where flow and return temperatures are flat</p>
-
+                <p>Make sure there is at least a short period of steady state running in the window.<br>Heat output spikes after hot water cycles can skew results.</p>
                 <div class="input-append" style="margin-top:5px">
                   <input type="text" style="width:50px" id="kW_at_50" disabled>
                   <span class="add-on">kW @ DT50</span>
-                  <button class="btn" id="use_for_volume_calc">Use for volume calc</button>
+                  <span class="add-on">Fix <input type="checkbox" id="fix_kW_at_50"></span>
                 </div>
-
-                <p>2. Select space heating period with increasing flow and return temperatures</p>
-
                 <div class="input-append" style="margin-top:5px">
                   <input type="text" style="width:50px" id="system_volume" disabled>
                   <span class="add-on">Litres</span>
                 </div>
+                <br>
+                <div class="input-prepend input-append" style="margin-top:5px">
+                  <span class="add-on">Room temperature</span>
+
+                  <input type="text" style="width:50px" id="room_temperature" disabled>
+                  <span class="add-on">&deg;C</span>
+                  <span class="add-on">Manual <input type="checkbox" id="manual_roomT_enable"></span>
+                </div>
               </div>
             </div>
-
+            <!-- DHW Standby Heat Loss Calculation Option -->
+            <div class="advanced-options" style="border-bottom:1px solid #ccc">
+              <input id="standby_dhw_hl_enable" type="checkbox" class="advanced-options-checkbox">
+              <b>Calculate DHW Standby Heat Loss Coefficient</b>
+              <div id="standby_dhw_hl_options" style="margin-top:10px; display:none;">
+                  <p style="font-size:0.9em; color:#555;"><i>Ensure the selected window only shows natural DHW temperature decay (no heating cycles, no DHW use such as showering). Cylinder volume and environmental temperature are required to compute standby heat loss coefficient, which only works if DHW temperature is measured in °C and not % Charge. </i></p>
+                  <div class="input-prepend input-append" style="margin-top:5px; margin-bottom:5px;">
+                    <span class="add-on">Cylinder Volume (V<sub>cyl</sub>)</span>
+                    <input type="text" style="width:60px" id="cylinder_volume" value="200">
+                    <span class="add-on">L</span>
+                  </div>
+                  <div class="input-prepend input-append" style="margin-top:5px; margin-bottom:5px;">
+                    <span class="add-on">Environment Temp (T<sub>env</sub>)</span>
+                    <input type="text" style="width:50px" id="env_temperature" value="15">
+                    <span class="add-on">°C</span>
+                  </div>
+                  <div style="margin-top:10px;">
+                      DHW Heat Loss Coefficient (U): <b id="standby_dhw_hl_result">---</b> W/K |  DHW charge half-life (T<sub>1/2</sub>): <b id="standby_dhw_t_half_result">---</b> days
+                  </div>
+              </div>
+            </div>
+            <!-- End DHWStandby Heat Loss -->
             <div class="advanced-options" style="border-bottom:1px solid #ccc">
               <div style="float:right"><span id="standby_kwh"></span> kWh</span></div>
               <input id="configure_standby" type="checkbox" class="advanced-options-checkbox">
@@ -405,7 +436,7 @@ global $path, $session, $v;
     <div class="row-fluid">
       <div class="span7 xapp-config-description">
         <div class="xapp-config-description-inner text-light">
-          <h2 class="app-config-title text-primary"><?php echo _('My Heatpump'); ?></h2>
+          <h2 class="app-config-title text-primary"><?php echo tr('My Heatpump'); ?></h2>
           <p class="lead">The My Heatpump app can be used to explore the performance of a heatpump including, electricity consumption, heat output, COP and system temperatures.</p>
           <p><strong class="text-white">Auto configure:</strong> This app can auto-configure connecting to emoncms feeds with the names shown on the right, alternatively feeds can be selected by clicking on the edit button.</p>
           <p><strong class="text-white">Cumulative kWh</strong> feeds can be created from power feeds using the power_to_kwh input processor, which converts power data (measured in watts) into energy consumption data (measured in kWh).</p>
@@ -435,7 +466,7 @@ global $path, $session, $v;
   config.db = <?php echo json_encode($config); ?>;
 </script>
 
-<?php $v=156; ?>
+<?php $v=192; ?>
 <script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_process.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_powergraph.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_bargraph.js?v=<?php echo $v; ?>"></script>
