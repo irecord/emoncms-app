@@ -1,0 +1,21 @@
+/* Tariffs and schedule builder */
+.sched-subhead {
+    margin-bottom: 0.75rem;
+    color: var(--bs-primary);
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.sched-table th {
+    font-size: 13px;
+    color: var(--bs-secondary-color);
+}
+.sched-table .sched-num { width: 110px; }
+.sched-table .sched-name { max-width: 240px; }
+
+.sched-del {
+    --bs-btn-color: var(--bs-secondary-color);
+    --bs-btn-hover-color: var(--bs-danger);
+}

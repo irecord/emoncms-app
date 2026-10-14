@@ -1,255 +1,261 @@
 <?php
-    defined('EMONCMS_EXEC') or die('Restricted access');
-    global $path, $session, $v;
+defined('EMONCMS_EXEC') or die('Restricted access');
+global $path, $session, $v;
+
+load_js("Modules/feed/feed.js");
+load_js("Lib/js/flot-5.1.0.mod.min.js");
+load_js("Modules/app/Lib/vis.helper.js");
+load_js("Lib/js/clipboard.js");
+load_js("Lib/js/vue.global.prod-3.5.22.min.js");
+load_js("Lib/js/DateTimePicker.js");
+load_css("Theme/css/datetimepicker.css");
+load_css("Modules/app/Views/css/app-kit.css");
+load_css("Modules/app/apps/OpenEnergyMonitor/solarbatterysim/solarbatterysim.css");
 ?>
-<link href="<?php echo $path; ?>Modules/app/Views/css/config.css?v=<?php echo $v; ?>" rel="stylesheet">
-<link href="<?php echo $path; ?>Modules/app/Views/css/dark.css?v=<?php echo $v; ?>" rel="stylesheet">
 
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/appconf.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/feed/feed.js?v=<?php echo $v; ?>"></script>
+<div class="app-page" data-bs-theme="dark">
 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.min.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.time.min.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.selection.min.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/vis.helper.js?v=<?php echo $v; ?>"></script>
-<script src="<?php echo $path;?>Lib/misc/clipboard.js?v=<?php echo $v; ?>"></script>
-<script src="<?php echo $path; ?>Lib/vue.min.js"></script>
+<section id="app-block" style="display:none">
 
-<style>
-.color-box {
-  height:15px;
-  width:15px;
-}
-textarea {
-  white-space: pre;
-  overflow-wrap: normal;
-  overflow-x: scroll;
-}
-</style>
-
-<div id="app-block" style="display:none">
-  <div class="col1">
-    <div class="col1-inner">
-      <div style="float:right;">
-        <div class='btn-group' style="margin-top:10px;">
-          <button class='btn graph-time' type='button' time='1'>D</button>
-          <button class='btn graph-time' type='button' time='7'>W</button>
-          <button class='btn graph-time' type='button' time='30'>M</button>
-          <button class='btn graph-time' type='button' time='365'>Y</button>
-          <button class='btn graph-nav' id='zoomin'>+</button>
-          <button class='btn graph-nav' id='zoomout'>-</button>
-          <button class='btn graph-nav' id='left'><</button>
-          <button class='btn graph-nav' id='right'>></button>
-        </div>   
-      
-        <select id="resolution" class="btn" style="width:100px; margin-top:10px; text-align:left">
-          <option value="600">10 mins</option>
-          <option value="900">15 mins</option>
-          <option value="1800">30 mins</option>
-        </select>
-        <button class="btn config-open" style="margin-top:10px">
-          <i class=" icon-wrench"></i>
-        </button>
+  <div class="app-card">
+    <nav class="app-card-head">
+      <div class="nav nav-underline">
+        <button class="nav-link active"><i class="svg-icon-sun"></i><span class="d-none d-sm-inline">Solar &amp; Battery </span>Simulator</button>
       </div>
-      <h3>Solar PV & Battery Simulator</h3>
-    </div>
-  </div>
-
-  <div id="graph" style="height:500px; width:100%;"></div>
-  
-  <div id="app">
-    
-    <div style="float:left; width:350px">
-        <h4>Solar & Battery</h4>
-
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Existing solar</span>
-          <span class="add-on"><input type="checkbox" v-model="input.solar_existing" style="width:120px" /></span>
-        </div><br>
-        
-
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Solar capacity</span>
-          <input type="text" v-model.number="input.solar_capacity" style="width:120px" />
-        </div><br>
-        
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Capacity (Useable)</span>
-          <input type="text" v-model.number="input.battery_capacity" style="width:120px" />
-        </div><br>
-        
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Max charge rate</span>
-          <input type="text" v-model.number="input.battery_max_charge_rate" style="width:120px" />
-        </div><br>
-
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Max discharge rate</span>
-          <input type="text" v-model.number="input.battery_max_discharge_rate" style="width:120px" />
-        </div><br>
-
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Round trip efficiency</span>
-          <input type="text" v-model.number="input.battery_round_trip_efficiency" style="width:120px" />
-        </div><br>
-    
-    </div>
-    
-    <div style="float:left; width:350px">
-        <h4>Off-peak charging period</h4>
-
-        <div class="input-prepend input-append">
-          <span class="add-on" style="width:140px">Enable</span>
-          <span class="add-on" style="width:79px">
-          <input type="checkbox" v-model="input.offpeak_enable"  />
-          </span>
-        </div><br>
-
-        <div class="input-prepend input-append">
-          <span class="add-on" style="width:140px">Winter SOC start</span>
-          <input type="text" v-model.number="input.battery_offpeak_soc_start_winter" style="width:50px" />
-          <span class="add-on">%</span>
-        </div><br>
-
-        <div class="input-prepend input-append">
-          <span class="add-on" style="width:140px">Winter SOC end</span>
-          <input type="text" v-model.number="input.battery_offpeak_soc_target_winter" style="width:50px" />
-          <span class="add-on">%</span>
-        </div><br>
-        
-        <div class="input-prepend input-append">
-          <span class="add-on" style="width:140px">Summer SOC start</span>
-          <input type="text" v-model.number="input.battery_offpeak_soc_start_summer" style="width:50px" />
-          <span class="add-on">%</span>
-        </div><br>
-
-        <div class="input-prepend input-append">
-          <span class="add-on" style="width:140px">Summer SOC end</span>
-          <input type="text" v-model.number="input.battery_offpeak_soc_target_summer" style="width:50px" />
-          <span class="add-on">%</span>
-        </div><br>
-
-        <div class="input-prepend input-append">
-          <span class="add-on" style="width:140px">Minimum battery SOC</span>
-          <input type="text" v-model.number="input.battery_minimum_soc" style="width:50px" />
-          <span class="add-on">%</span>
-        </div><br>
-    
-    </div>
-    
-    <div style="float:left">
-        <h4>Tariff & Costs</h4>
-        
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Off-peak start</span>
-          <input type="text" v-model.number="input.offpeak_start" style="width:120px" />
-        </div><br>
-        
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Off-peak end</span>
-          <input type="text" v-model.number="input.offpeak_end" style="width:120px" />
-        </div><br>
-
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Peak unit rate</span>
-          <input type="text" v-model.number="input.peak_unit_rate" style="width:120px" />
-        </div><br>
-        
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Off-peak unit rate</span>
-          <input type="text" v-model.number="input.offpeak_unit_rate" style="width:120px" />
-        </div><br>
-
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">Export unit rate</span>
-          <input type="text" v-model.number="input.export_unit_rate" style="width:120px" />
-        </div><br>
-
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">System cost (£)</span>
-          <input type="text" v-model.number="input.system_cost" style="width:120px" />
-        </div><br>
-
-        <div class="input-prepend">
-          <span class="add-on" style="width:140px">System lifespan (years)</span>
-          <input type="text" v-model.number="input.system_lifespan" style="width:120px" />
-        </div><br>
-    
-    </div>
-    
-    <div style="clear:both"></div>
-    <button class="btn btn-success" id="simulate" @click="run" style="float:right">Simulate</button>
-    
-    <h4>Results</h4>
-    <table class="table table-striped">
-      <tr>
-        <th>Month</th>
-        <th>Use</th>
-        <th>Solar</th>
-        <th>Import</th>
-        <th>Export</th>
-        <th>Solar direct</th>
-        <th>Charge</th>
-        <th>Discharge</th>
-        <th>Import Cost</th>
-        <th>Export Value</th>
-        <th>Ref Cost</th>
-      </tr>
-      <tr v-for="(month, index) in monthly">
-        <td>{{ month.name }}</td>
-        <td>{{ month.total_consumption | toFixed(0) }} kWh</td>
-        <td>{{ month.total_generation | toFixed(0) }} kWh</td>
-        <td>{{ month.total_import | toFixed(0) }} kWh</td>
-        <td>{{ month.total_export | toFixed(0) }} kWh</td>
-        <td>{{ month.total_solar_direct | toFixed(0) }} kWh</td>
-        <td>{{ month.total_charge | toFixed(0) }} kWh</td>
-        <td>{{ month.total_discharge | toFixed(0) }} kWh</td>
-        <td>£{{ month.total_import_cost | toFixed(2) }}</td>
-        <td>£{{ month.total_export_value | toFixed(2) }}</td>
-        <td>£{{ month.total_reference_cost | toFixed(2) }}</td>
-      </tr>
-      
-      <tr>
-        <th>TOTAL</th>
-        <th>{{ annual.total_consumption | toFixed(0) }} kWh</th>
-        <th>{{ annual.total_generation | toFixed(0) }} kWh</th>
-        <th>{{ annual.total_import | toFixed(0) }} kWh</th>
-        <th>{{ annual.total_export | toFixed(0) }} kWh</th>
-        <th>{{ annual.total_solar_direct | toFixed(0) }} kWh</th>
-        <th>{{ annual.total_charge | toFixed(0) }} kWh</th>
-        <th>{{ annual.total_discharge | toFixed(0) }} kWh</th>
-        <th>£{{ annual.total_import_cost | toFixed(2) }}</th>
-        <th>£{{ annual.total_export_value | toFixed(2) }}</th>
-        <th>£{{ annual.total_reference_cost | toFixed(2) }}</th>
-      </tr>
-    </table>
-    
-    <h4>Savings and payback</h4>
-    <table class="table table-striped">
-      <tr><td>Annual import saving</td><td>£{{ annual.import_saving | toFixed(2) }}</td></tr>
-      <tr><td>Simple payback (system cost / import saving)</td><td>{{ output.simple_payback | toFixed(1) }} years</td></tr>
-      <tr><td>Annual solar & battery system cost</td><td>£{{ annual.system_cost | toFixed(2) }}</td></tr>
-      <tr><td>Annual solar & battery system + import cost</td><td>£{{ annual.total_cost | toFixed(2) }}</td></tr>
-      <tr><td>Annual averaged unit price</td><td>{{ annual.unit_price*100 | toFixed(2) }} p/kWh</td></tr>
-    </table>
-    
-    
-  </div>
-  
-</div>    
-
-<div id="app-setup" style="display:none; padding-top:50px" class="block">
-    <h2 class="app-config-title">Solar & Battery Simulator</h2>
-    <div class="app-config-description">
-        <div class="app-config-description-inner">
-            Explore impact and savings of installing solar and battery storage
+      <div class="app-card-tools">
+        <div class="input-group input-group-sm w-auto">
+          <span class="input-group-text d-none d-sm-flex">Interval</span>
+          <select id="resolution" class="form-select">
+            <option value="600">10 mins</option>
+            <option value="900">15 mins</option>
+            <option value="1800">30 mins</option>
+          </select>
         </div>
+        <div class="nav">
+          <button class="nav-link config-open" title="Configure app"><i class="svg-icon-wrench"></i></button>
+        </div>
+      </div>
+    </nav>
+  </div>
+
+  <div class="app-card app-card-body">
+    <div id="graph-nav" class="app-navbar">
+      <?php
+      $timebar_ranges = array(24 => tr('1 day'), 168 => tr('1 week'), 720 => tr('1 month'), 8760 => tr('1 year'));
+      include "Modules/app/Lib/timebar.php";
+      ?>
     </div>
-    <div class="app-config"></div>
+    <?php include "Modules/app/Lib/timebar_manual.php"; ?>
+    <div id="graph"></div>
+    <div id="chart-legend" class="app-legend"></div>
+  </div>
+
+  <div id="app">
+
+    <div class="app-card app-card-body">
+      <div class="app-card-caption">
+        <span class="app-section-label">Annual result</span>
+        <span class="app-caption-note">Last 12 full months</span>
+      </div>
+      <div class="app-live">
+        <div>
+          <div class="app-live-label">Import saving</div>
+          <div class="app-live-value text-success">£{{ toFixed(annual.import_saving, 0) }}<span class="power-unit-static">/yr</span></div>
+        </div>
+        <div>
+          <div class="app-live-label">Simple payback</div>
+          <div class="app-live-value text-use">{{ toFixed(output.simple_payback, 1) }}<span class="power-unit-static">years</span></div>
+        </div>
+        <div>
+          <div class="app-live-label">Unit price</div>
+          <div class="app-live-value text-use">{{ toFixed(annual.unit_price*100, 1) }}<span class="power-unit-static">p/kWh</span></div>
+        </div>
+        <div>
+          <div class="app-live-label">System cost</div>
+          <div class="app-live-value text-battery">£{{ toFixed(annual.system_cost, 0) }}<span class="power-unit-static">/yr</span></div>
+        </div>
+        <div>
+          <div class="app-live-label">System + import</div>
+          <div class="app-live-value text-battery">£{{ toFixed(annual.total_cost, 0) }}<span class="power-unit-static">/yr</span></div>
+        </div>
+        <div>
+          <div class="app-live-label">Grid import</div>
+          <div class="app-live-value text-import">{{ toFixed(annual.total_import, 0) }}<span class="power-unit-static">kWh</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-card app-card-body sim-inputs">
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="app-section-label mb-2">Solar &amp; battery</div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Existing solar</span>
+            <span class="input-group-text"><input type="checkbox" class="form-check-input mt-0" v-model="input.solar_existing" /></span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Solar capacity</span>
+            <input type="text" class="form-control" v-model.number="input.solar_capacity" />
+            <span class="input-group-text">W</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Capacity (useable)</span>
+            <input type="text" class="form-control" v-model.number="input.battery_capacity" />
+            <span class="input-group-text">kWh</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Max charge rate</span>
+            <input type="text" class="form-control" v-model.number="input.battery_max_charge_rate" />
+            <span class="input-group-text">W</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Max discharge rate</span>
+            <input type="text" class="form-control" v-model.number="input.battery_max_discharge_rate" />
+            <span class="input-group-text">W</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Round trip efficiency</span>
+            <input type="text" class="form-control" v-model.number="input.battery_round_trip_efficiency" />
+            <span class="input-group-text">%</span>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="app-section-label mb-2">Off-peak charging</div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Enable</span>
+            <span class="input-group-text"><input type="checkbox" class="form-check-input mt-0" v-model="input.offpeak_enable" /></span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Winter SOC start</span>
+            <input type="text" class="form-control" v-model.number="input.battery_offpeak_soc_start_winter" />
+            <span class="input-group-text">%</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Winter SOC end</span>
+            <input type="text" class="form-control" v-model.number="input.battery_offpeak_soc_target_winter" />
+            <span class="input-group-text">%</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Summer SOC start</span>
+            <input type="text" class="form-control" v-model.number="input.battery_offpeak_soc_start_summer" />
+            <span class="input-group-text">%</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Summer SOC end</span>
+            <input type="text" class="form-control" v-model.number="input.battery_offpeak_soc_target_summer" />
+            <span class="input-group-text">%</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Minimum battery SOC</span>
+            <input type="text" class="form-control" v-model.number="input.battery_minimum_soc" />
+            <span class="input-group-text">%</span>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="app-section-label mb-2">Tariff &amp; costs</div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Off-peak start</span>
+            <input type="text" class="form-control" v-model.number="input.offpeak_start" />
+            <span class="input-group-text">h</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Off-peak end</span>
+            <input type="text" class="form-control" v-model.number="input.offpeak_end" />
+            <span class="input-group-text">h</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Peak unit rate</span>
+            <input type="text" class="form-control" v-model.number="input.peak_unit_rate" />
+            <span class="input-group-text">p/kWh</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Off-peak unit rate</span>
+            <input type="text" class="form-control" v-model.number="input.offpeak_unit_rate" />
+            <span class="input-group-text">p/kWh</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">Export unit rate</span>
+            <input type="text" class="form-control" v-model.number="input.export_unit_rate" />
+            <span class="input-group-text">p/kWh</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">System cost</span>
+            <input type="text" class="form-control" v-model.number="input.system_cost" />
+            <span class="input-group-text">£</span>
+          </div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">System lifespan</span>
+            <input type="text" class="form-control" v-model.number="input.system_lifespan" />
+            <span class="input-group-text">years</span>
+          </div>
+        </div>
+      </div>
+      <div class="text-end">
+        <button class="btn btn-outline-primary" id="simulate" @click="run">Simulate</button>
+      </div>
+    </div>
+
+    <div class="app-card app-card-body">
+      <div class="table-responsive">
+        <table class="table text-nowrap mb-0">
+          <tr>
+            <th>Month</th>
+            <th>Use</th>
+            <th>Solar</th>
+            <th>Import</th>
+            <th>Export</th>
+            <th>Solar direct</th>
+            <th>Charge</th>
+            <th>Discharge</th>
+            <th>Import cost</th>
+            <th>Export value</th>
+            <th>Ref cost</th>
+          </tr>
+          <tr v-for="(month, index) in monthly">
+            <td class="col-primary">{{ month.name }}</td>
+            <td>{{ toFixed(month.total_consumption, 0) }} kWh</td>
+            <td>{{ toFixed(month.total_generation, 0) }} kWh</td>
+            <td>{{ toFixed(month.total_import, 0) }} kWh</td>
+            <td>{{ toFixed(month.total_export, 0) }} kWh</td>
+            <td>{{ toFixed(month.total_solar_direct, 0) }} kWh</td>
+            <td>{{ toFixed(month.total_charge, 0) }} kWh</td>
+            <td>{{ toFixed(month.total_discharge, 0) }} kWh</td>
+            <td>£{{ toFixed(month.total_import_cost, 2) }}</td>
+            <td>£{{ toFixed(month.total_export_value, 2) }}</td>
+            <td>£{{ toFixed(month.total_reference_cost, 2) }}</td>
+          </tr>
+          <tr class="col-primary">
+            <th>TOTAL</th>
+            <th>{{ toFixed(annual.total_consumption, 0) }} kWh</th>
+            <th>{{ toFixed(annual.total_generation, 0) }} kWh</th>
+            <th>{{ toFixed(annual.total_import, 0) }} kWh</th>
+            <th>{{ toFixed(annual.total_export, 0) }} kWh</th>
+            <th>{{ toFixed(annual.total_solar_direct, 0) }} kWh</th>
+            <th>{{ toFixed(annual.total_charge, 0) }} kWh</th>
+            <th>{{ toFixed(annual.total_discharge, 0) }} kWh</th>
+            <th>£{{ toFixed(annual.total_import_cost, 2) }}</th>
+            <th>£{{ toFixed(annual.total_export_value, 2) }}</th>
+            <th>£{{ toFixed(annual.total_reference_cost, 2) }}</th>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+</section>
+
+<div id="appconf-description" style="display:none">
+    <p class="lead">Explore impact and savings of installing solar and battery storage.</p>
 </div>
+<?php include('Modules/app/Lib/appconf/appconf.php'); ?>
 
 <div class="ajax-loader"></div>
 
+
+</div>
 <script>
 
 // ----------------------------------------------------------------------
@@ -267,13 +273,6 @@ $("#resolution").val(interval);
 // Graph variables
 var data = [];
 var options = {}
-// ----------------------------------------------------------------------
-// Display
-// ----------------------------------------------------------------------
-$("body").css('background-color','#fff');
-$(window).ready(function(){
-
-});
 if (!sessionwrite) $(".config-open").hide();
 
 // ----------------------------------------------------------------------
@@ -284,9 +283,9 @@ config.app = {
     "solar":{"type":"feed", "autoname":"solar_kwh","optional":true}, 
     "solar_capacity":{"type":"value", "name": "Solar capacity (W)", "default": 1250, "optional":true, "description":"Enter solar capacity"},
     "public_solar_feed":{"type":"value", "name": "Public solar feed id", "default": 462987, "optional":true, "description":"Hosted on emoncms.org"},
-    "public_solar_capacity":{"type":"value", "name": "Public solar feed id", "default": 1250, "optional":true, "description":"Solar capacity of public dataset"},
-    "public":{"type":"checkbox", "name": "Public", "default": 0, "optional":true, "description":"Make app public"}
+    "public_solar_capacity":{"type":"value", "name": "Public solar feed id", "default": 1250, "optional":true, "description":"Solar capacity of public dataset"}
 };
+config.app_name = "Solar & Battery Simulator";
 config.id = <?php echo $id; ?>;
 config.name = "<?php echo $name; ?>";
 config.public = <?php echo $public; ?>;
@@ -331,25 +330,22 @@ var discharge_data = [];
 var soc_prc_data = [];
 var grid_import_data = [];
 
-app = new Vue({
-    el: '#app',
-    data: {
+app = Vue.createApp({
+    data() { return {
         input: input,
         monthly: monthly,
         annual: annual,
         output: output
-    },
+    }; },
     methods: {
         run: function() {
           show();
-        }
-    },
-    filters: {
-        toFixed: function(value,dp) {
-            return value.toFixed(dp)
+        },
+        toFixed: function(value, dp) {
+            return isFinite(value) ? value.toFixed(dp) : "--";
         }
     }
-});
+}).mount('#app');
 
 
 config.initapp = function(){init()};
@@ -617,8 +613,6 @@ function process_month(d) {
     
 function show()
 {
-    $("body").css('background-color','#fff');
-    
     var d = new Date();
     d.setHours(0,0,0,0);
     d.setDate(1);
@@ -664,24 +658,26 @@ function show()
     data = [];
     data.push({label:"Consumption", data: use_data, color: "#0699fa",lines:{lineWidth:0, fill:0.8}});
     data.push({label:"Solar", data: solar_data, color: "#dccc1f", lines:{lineWidth:0, fill:0.8}});
-    data.push({label:"SOC", data: soc_prc_data, yaxis:2, color: "#000", lines:{lineWidth:1, fill:0.0}});
+    data.push({label:"SOC", data: soc_prc_data, yaxis:2, color: "#fb7b50", lines:{lineWidth:1, fill:0.0}});
 
     options = {
-        canvas: true,
-        lines: { fill: true },
+        series: { lines: { fill: true, lineWidth: 2 } },
+        legend: { show: false },
         //bars: { show: true, align: "center", barWidth: 0.75*interval*1000, fill: false},
-        xaxis: { mode: "time", timezone: "browser", min: view.start, max: view.end },
+        xaxis: { mode: "time", timezone: "browser", timeBase: "milliseconds", autoScale: "none", min: view.start, max: view.end, axisPan: true, plotPan: true, axisZoom: true, plotZoom: true },
+        yaxis: { axisPan: false, plotPan: false, axisZoom: false, plotZoom: false },
+        // Flot 5 needs the second axis declared for the SOC series
+        yaxes: [{}, { position: "right", min: 0, max: 100 }],
         grid: {
             show:true, 
             hoverable: true, 
-            clickable: true
+            clickable: true,
+            borderWidth: 0
         },
-        selection: { mode: "x" },
-        touch: { pan: "x", scale: "x" }
+        selection: { mode: "x", color: "#e8cfac", visualization: "fill" }
     }
     
-    // Draw graph
-    $.plot($('#graph'),data, options);
+    draw();
     $(".ajax-loader").hide();
 }
    
@@ -693,21 +689,23 @@ function updater()
 function resize() 
 {
     updater();
-    // Resize graph
-    $("#graph").width($('#app-block').width());
-    $.plot($('#graph'),data, options);
+    Flot.plot(document.getElementById('graph'),data, options);
 }
 
 function draw() {
 
     options.xaxis.min = view.start;
     options.xaxis.max = view.end;
-    $.plot($('#graph'),data, options);
+    Flot.plot(document.getElementById('graph'),data, options);
+    chart_legend(data);
+    timebar_update(false);
+    // Fixed dataset, so no Now button
+    $("#time-now").hide();
 }
 
+// No timers to stop
 function clear()
 {
-    clearInterval(updaterinst);
 }
 
 $(window).resize(function(){
@@ -725,10 +723,19 @@ $("#zoomout").click(function () {view.zoomout(); draw();});
 $("#zoomin").click(function () {view.zoomin(); draw();});
 $('#right').click(function () {view.panright(); draw();});
 $('#left').click(function () {view.panleft(); draw();});
-$('.graph-time').click(function () {view.timewindow($(this).attr("time")); draw();});
+$('#time-select').change(function () {
+    var hours = parseFloat($(this).val());
+    if (!hours) return;
+    view.timewindow(hours/24.0);
+    draw();
+});
 
-$("#graph").bind("plotselected", function (event, ranges)
+// Start and End fields from Lib/vis.helper.js
+timebar_manual(draw);
+
+document.getElementById("graph").addEventListener("plotselected", function (event)
 {
+    var ranges = event.detail[0];
     view.start = ranges.xaxis.from;
     view.end = ranges.xaxis.to;
     draw();

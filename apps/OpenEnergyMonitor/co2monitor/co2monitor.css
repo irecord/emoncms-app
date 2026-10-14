@@ -1,0 +1,23 @@
+/* CO2 Monitor. Shared components are in Modules/app/Views/css/app-kit.css. */
+
+#graph_bound { width: 100%; }
+#graph {
+    width: 100%;
+    height: calc(100vh - 32rem);
+    min-height: 250px;
+}
+
+/* Totals across sensors, beside the CO2 addition field that sets the air change rate */
+.co2-totals {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    font-size: 13px;
+    color: var(--ec-text-secondary);
+}
+.co2-totals b { color: var(--bs-emphasis-color); }
+
+/* Sensor colour square toggles the series */
+.co2-swatch { cursor: pointer; }
+.table tr.co2-off { opacity: 0.4; }

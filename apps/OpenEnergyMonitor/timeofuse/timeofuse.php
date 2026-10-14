@@ -2,193 +2,146 @@
     defined('EMONCMS_EXEC') or die('Restricted access');
     global $path, $session, $v;
 ?>
-<link href="<?php echo $path; ?>Modules/app/Views/css/config.css?v=<?php echo $v; ?>" rel="stylesheet">
-<link href="<?php echo $path; ?>Modules/app/Views/css/light.css?v=<?php echo $v; ?>" rel="stylesheet">
+<?php load_css("Modules/app/Views/css/app-kit.css"); ?>
+<?php load_css("Lib/fonts/montserrat/montserrat.css"); ?>
+<?php load_css("Modules/app/apps/OpenEnergyMonitor/timeofuse/timeofuse.css"); ?>
+<?php load_js("Modules/feed/feed.js"); ?>
 
-<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Montserrat&amp;lang=en" />    
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/appconf.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/feed/feed.js?v=<?php echo $v; ?>"></script>
+<?php load_js("Lib/js/flot-5.1.0.mod.min.js"); ?>
+<?php load_js("Modules/app/Lib/vis.helper.js"); ?>
+<?php load_js("Lib/js/DateTimePicker.js"); ?>
+<?php load_css("Theme/css/datetimepicker.css"); ?>
 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.min.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.time.min.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.selection.min.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.stack.min.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/date.format.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/vis.helper.js?v=<?php echo $v; ?>"></script>
+<div class="app-page" data-bs-theme="light">
+  <section id="app-block" style="display:none">
 
-<style>
-
-.electric-title {
-    font-weight:bold;
-    font-size:22px;
-    color:#44b3e2;
-}
-
-.power-value {
-    font-weight:bold; 
-    font-size:52px; 
-    color:#44b3e2;
-    line-height: 1.1;
-}
-
-.block-bound {
-  background-color:rgb(68,179,226);
-}
-
-</style>
-
-<div style="font-family: Montserrat, Veranda, sans-serif;">
-<div id="app-block" style="display:none">
-    
-  <div class="col1"><div class="col1-inner">
-  
-    <div class="block-bound">
-      <div class="bluenav config-open"><i class="icon-wrench icon-white"></i></div>
-      <div class="bluenav viewcostenergy">ENERGY MODE</div>
-      <!--<div class="bluenav cost">Cost</div>
-      <div class="bluenav energy">Energy</div>-->
-      <div class="block-title">MY ELECTRIC</div>
-    </div>
-
-    <div style="background-color:#fff; color:#333; padding:10px;">
-      <table style="width:100%">
-        <tr>
-          <td style="width:40%">
-              <div class="electric-title">POWER NOW</div>
-              <div class="power-value"><span id="power_now">0</span></div>
-          </td>
-          <td style="text-align:right">
-              <div class="electric-title">USE TODAY</div>
-              <div class="power-value"><span id="kwh_today">0</span></div>
-          </td>
-        </tr>
-      </table>
-    </div>
-    
-  </div></div>
-  <div class="col1"><div class="col1-inner">
-
-    <div class="block-bound">
-    
-      <div class="bargraph-navigation">
-        <!--<div class="bluenav bargraph-other">OTHER</div>-->
-        <div class="bluenav bargraph-alltime">ALL TIME</div>
-        <div class="bluenav bargraph-month">MONTH</div>
-        <div class="bluenav bargraph-week">WEEK</div>
+    <div class="app-card">
+      <nav class="app-card-head">
+        <div class="nav nav-underline">
+          <button class="nav-link active"><i class="svg-icon-schedule"></i>Time of Use</button>
+        </div>
+        <div class="app-card-tools">
+          <span id="live-status" class="app-status"><span class="app-status-dot"></span><span class="app-status-text"></span></span>
+          <div class="nav">
+            <button class="nav-link config-open" title="Configure app"><i class="svg-icon-wrench"></i></button>
+          </div>
+        </div>
+      </nav>
+      <div class="app-live">
+        <div>
+          <div class="app-live-label">Power now</div>
+          <div class="app-live-value text-tou-day" id="power_now">---</div>
+        </div>
+        <div>
+          <div class="app-live-label">Use today</div>
+          <div class="app-live-value text-tou-day" id="kwh_today">---</div>
+        </div>
       </div>
-      
-      <div class="powergraph-navigation" style="display:none">
-        <div class="bluenav viewhistory">VIEW HISTORY</div>
-        <span class="bluenav" id="right" >></span>
-        <span class="bluenav" id="left" ><</span>
-        <span class="bluenav" id="zoomout" >-</span>
-        <span class="bluenav" id="zoomin" >+</span>
-        <span class="bluenav time" time='720'>M</span>
-        <span class="bluenav time" time='168'>W</span>
-        <span class="bluenav time" time='24'>D</span>
-      </div>
-        
-      <div class="block-title">HISTORY</div>
-         
     </div>
-    
-    <div style="background-color:rgba(68,179,226,0.1); padding:10px;">
-      <div id="placeholder_bound" style="width:100%; height:500px;">
+
+    <div class="app-card app-card-body">
+      <div id="graph-nav" class="app-navbar">
+        <?php
+        // Power view up to a month, daily bars from a week to all time
+        $timebar_ranges = array(24 => tr('24 hours'), 168 => tr('1 week'), 720 => tr('1 month'), 'all' => tr('All time'));
+        include "Modules/app/Lib/timebar.php";
+        ?>
+        <div class="d-flex flex-wrap gap-2 ms-auto">
+          <div class="btn-group app-segmented">
+            <button class="btn viewcostenergy active" data-mode="energy" title="Show energy">Energy</button>
+            <button class="btn viewcostenergy" data-mode="cost" title="Show cost">Cost</button>
+          </div>
+          <div class="btn-group app-segmented">
+            <button class="btn viewpower" title="Power in the window">Power</button>
+            <button class="btn viewhistory active" title="Daily history">Daily</button>
+          </div>
+        </div>
+      </div>
+      <?php include "Modules/app/Lib/timebar_manual.php"; ?>
+
+      <div id="placeholder_bound" style="width:100%; height:500px">
         <div id="placeholder" style="height:500px"></div>
       </div>
-    </div>
-          
-    <div id="power-graph-footer" style="background-color:#eee; color:#333; display:none">
-      <div id='advanced-toggle' class='bluenav' >SHOW DETAIL</div>
- 
-       <div style="padding:10px;">
-        kWh in window: <b id="window-kwh"></b> <b>kWh</b>, Off-peak: <b id="window-offpeak"></b> <b>kWh</b>, Peak: <b id="window-peak"></b> <b>kWh</b>
+      <div id="chart-legend" class="app-legend"></div>
+
+      <div id="power-graph-footer" style="display:none">
+        <div class="app-card-caption app-chart-foot">
+          <span class="app-section-label">Energy in window</span>
+          <span class="app-caption-note">Total <b><span id="window-kwh"></span> kWh</b></span>
+          <span class="app-caption-note">Off-peak <b><span id="window-offpeak"></span> kWh</b></span>
+          <span class="app-caption-note">Peak <b><span id="window-peak"></span> kWh</b></span>
+          <div class="nav ms-auto"><button id="advanced-toggle" class="nav-link">SHOW DETAIL</button></div>
+        </div>
       </div>
-      
-      <div style="clear:both"></div>
-    </div>
-          
-    <div id="advanced-block" style="background-color:#eee; padding:10px; display:none">
-      <div style="color:#000">
+
+      <div id="advanced-block" style="display:none">
         <table class="table">
           <tr>
-          <th></th>
-          <th style="text-align:center">Min</th>
-          <th style="text-align:center">Max</th>
-          <th style="text-align:center">Diff</th>
-          <th style="text-align:center">Mean</th>
-          <th style="text-align:center">StDev</th>
+            <th></th>
+            <th class="text-center">Min</th>
+            <th class="text-center">Max</th>
+            <th class="text-center">Diff</th>
+            <th class="text-center">Mean</th>
+            <th class="text-center">StDev</th>
           </tr>
           <tbody id="stats"></tbody>
         </table>
       </div>
     </div>
-    
-  </div></div>
-    
-  <div class="col2">
-    <div class="col2-inner">
-      <div class="block-bound">
-          <div class="block-title">TOTALS</div>
-      </div>
-      
-      <div style="background-color:rgba(68,179,226,0.1); padding:20px; color:#333;">
-          <div class="electric-title">DAY TIME TOTAL</div>
-          <div class="power-value"><span id="daytime_total_kwh">0</span></div><br>
-          <div class="electric-title">DAY TIME DAILY AVERAGE</div>
-          <div class="power-value"><span id="daytime_average_kwhd">0</span></div><br>
-          <div class="electric-title">NIGHT TIME TOTAL</div>
-          <div class="power-value"><span id="nighttime_total_kwh">0</span></div><br>
-          <div class="electric-title">NIGHT TIME DAILY AVERAGE</div>
-          <div class="power-value"><span id="nighttime_average_kwhd">0</span></div><br>
-      </div>
-    </div>
-  </div>
-  
-  <div class="col2">
-    <div class="col2-inner">
-      <div class="block-bound">
-          <div class="block-title">COMPARISON</div>
-      </div>
-      
-      <div style="background-color:rgba(68,179,226,0.1); padding:20px; color:#333; text-align:center">
-        <div id="comparison_summary" style=""></div><br>
-        <canvas id="energystack" width="270px" height="360px"></canvas>
-        <div style="text-align:left">
-        The ZeroCarbonBritain target is based on a household using all low energy appliances and LED lighting.
-        <br><br>
-        
-        <b>My Electric includes:</b><br>
-        <input id="heating" type="checkbox"> Heatpump or electric heating<br><input id="transport" type="checkbox"> Electric Vehicle
-        </div>
-        <div style="clear:both"></div>
-      </div>
-    </div>
-  </div>
-    
-</div>    
-</div>
 
-
-
-<section id="app-setup" class="hide pb-3 px-3">
-    <!-- instructions and settings -->
-    <div class="row-fluid">
-        <div class="span7 app-config-description">
-            <div class="app-config-description-inner text-light">
-                <h2 class="app-config-title text-primary"><?php echo tr('Time of Use'); ?></h2>
-                <p class="lead">The My Electric app is a simple home energy monitoring app for exploring home or building electricity consumption over time.</p>
-                <p><strong class="text-white">Auto configure:</strong> This app can auto-configure connecting to emoncms feeds with the names shown on the right, alternatively feeds can be selected by clicking on the edit button.</p>
-                <p><strong class="text-white">Cumulative kWh</strong> feeds can be generated from power feeds with the power_to_kwh input processor.</p>
+    <div class="row">
+      <div class="col-lg-6 d-flex">
+        <div class="app-card app-card-body flex-fill mt-0">
+          <div class="app-card-caption"><span class="app-section-label">Totals</span></div>
+          <div class="app-live">
+            <div>
+              <div class="app-live-label">Day time total</div>
+              <div class="app-live-value text-tou-day" id="daytime_total_kwh">---</div>
             </div>
+            <div>
+              <div class="app-live-label">Day time daily average</div>
+              <div class="app-live-value text-tou-day" id="daytime_average_kwhd">---</div>
+            </div>
+          </div>
+          <div class="app-live">
+            <div>
+              <div class="app-live-label">Night time total</div>
+              <div class="app-live-value text-tou-night" id="nighttime_total_kwh">---</div>
+            </div>
+            <div>
+              <div class="app-live-label">Night time daily average</div>
+              <div class="app-live-value text-tou-night" id="nighttime_average_kwhd">---</div>
+            </div>
+          </div>
         </div>
-        <div class="span5 app-config pt-3"></div>
+      </div>
+
+      <div class="col-lg-6 d-flex">
+        <div class="app-card app-card-body flex-fill mt-0">
+          <div class="app-card-caption"><span class="app-section-label">Comparison</span></div>
+          <div class="text-center">
+            <p id="comparison_summary"></p>
+            <canvas id="energystack" width="270" height="360"></canvas>
+          </div>
+          <p>The ZeroCarbonBritain target is based on a household using all low energy appliances and LED lighting.</p>
+          <p class="fw-bold mb-2">My Electric includes:</p>
+          <div class="app-options">
+            <div class="app-option"><input id="heating" type="checkbox"> Heatpump or electric heating</div>
+            <div class="app-option"><input id="transport" type="checkbox"> Electric Vehicle</div>
+          </div>
+        </div>
+      </div>
     </div>
-</section>
 
+  </section>
 
+<div id="appconf-description" style="display:none">
+    <p class="lead">The My Electric app is a simple home energy monitoring app for exploring home or building electricity consumption over time.</p>
+</div>
+<?php include('Modules/app/Lib/appconf/appconf.php'); ?>
 
 <div class="ajax-loader"></div>
+</div>
 
 <script>
 
@@ -200,15 +153,6 @@ var sessionwrite = <?php echo $session['write']; ?>;
 feed.apikey = apikey;
 feed.public_userid = public_userid;
 feed.public_username = public_username;
-// ----------------------------------------------------------------------
-// Display
-// ----------------------------------------------------------------------
-$("body").css('background-color','WhiteSmoke');
-$(window).ready(function(){
-    //$("#footer").css('background-color','#181818');
-    //$("#footer").css('color','#999');
-});
-
 if (!sessionwrite) $(".openconfig").hide();
 
 // ----------------------------------------------------------------------
@@ -222,11 +166,10 @@ config.app = {
     
     "unitcost_day":{"type":"value", "default":0.15, "name": "Day time unit cost", "description":"Day time unit cost of electricity £/kWh"},
     "unitcost_night":{"type":"value", "default":0.07, "name": "Night time unit cost", "description":"Night time unit cost of electricity £/kWh"},
-    "currency":{"type":"value", "default":"£", "name": "Currency", "description":"Currency symbol (£,$..)"},
-    
-    "public":{"type":"checkbox", "name": "Public", "default": 0, "optional":true, "description":"Make app public"}
+    "currency":{"type":"value", "default":"£", "name": "Currency", "description":"Currency symbol (£,$..)"}
 };
 
+config.app_name = "Time of Use";
 config.id = <?php echo $id; ?>;
 config.name = "<?php echo $name; ?>";
 config.public = <?php echo $public; ?>;
@@ -258,6 +201,7 @@ var flot_font_size = 12;
 var start_time = 0;
 var updaterinst = false;
 var use_start = 0;
+var bargraph_alltime = false;
 
 config.init();
 
@@ -271,8 +215,6 @@ function init()
 }
 
 function show() {
-    $("body").css('background-color','WhiteSmoke');
-    
     meta["use_kwh"] = feed.getmeta(feeds["use_kwh"].id);
     if (meta["use_kwh"].start_time>start_time) start_time = meta["use_kwh"].start_time;
     use_start = feed.getvalue(feeds["use_kwh"].id, start_time);
@@ -282,11 +224,14 @@ function show() {
     var timeWindow = (3600000*24.0*30);
     var end = (new Date()).getTime();
     var start = end - timeWindow;
+    bargraph_alltime = false;
+    period_text = "month";
     bargraph_load(start,end);
     bargraph_draw();
     energystacks_draw();
 
     updater();
+    clearInterval(updaterinst);
     updaterinst = setInterval(updater,5000);
     $(".ajax-loader").hide();
 }
@@ -304,34 +249,86 @@ function updater()
             if (config.app[key].value) feeds[key] = result[config.app[key].value];
         }
         
-        $("#power_now").html(Math.round(feeds["use"].value)+"W");
+        $("#power_now").html(Math.round(feeds["use"].value)+"<span class='power-unit-static'>W</span>");
+        live_status_update(feeds["use"].time);
     });
 }
 
 // -------------------------------------------------------------------------------
 // EVENTS
 // -------------------------------------------------------------------------------
-// The buttons for these powergraph events are hidden when in historic mode 
-// The events are loaded at the start here and dont need to be unbinded and binded again.
-$("#zoomout").click(function () {view.zoomout(); powergraph_load(); powergraph_draw(); });
-$("#zoomin").click(function () {view.zoomin(); powergraph_load(); powergraph_draw(); });
-$('#right').click(function () {view.panright(); powergraph_load(); powergraph_draw(); });
-$('#left').click(function () {view.panleft(); powergraph_load(); powergraph_draw(); });
+// Time bar after a redraw. Daily bars use their own window; the power view
+// stops at a month and has no all time range.
+function tou_timebar_sync() {
+    var daily = viewmode == "bargraph";
+    timebar_hide("option[value=all]", !daily);
+    timebar_update(daily);
+    if (daily && bargraph_alltime) $("#time-select").val("all");
+    $(".viewhistory").toggleClass("active", daily);
+    $(".viewpower").toggleClass("active", !daily);
+}
 
-$('.time').click(function () {
-    view.timewindow($(this).attr("time")/24.0);
-    powergraph_load(); powergraph_draw(); 
+// Daily bars for a window, comparison for the same period
+function tou_bargraph(start, end, text) {
+    bargraph_load(start, end);
+    bargraph_draw();
+    period_text = text;
+    energystacks_draw();
+}
+
+// Range select: days of bars, or hours of power data
+$("#time-select").change(function () {
+    var value = $(this).val();
+    if (!value) return;
+    if (viewmode == "bargraph") {
+        var end = (new Date()).getTime();
+        var start = value == "all" ? start_time * 1000 : end - value * 3600000;
+        bargraph_alltime = value == "all";
+        var text = "period";
+        if (value == 168) text = "week";
+        if (value == 720) text = "month";
+        tou_bargraph(start, end, text);
+    } else {
+        view.timewindow(value / 24.0);
+        powergraph_load(); powergraph_draw();
+    }
 });
 
+// Zoom, pan and the Start and End fields act on the daily bars or the power graph
+function tou_navigate(move) {
+    move();
+    if (viewmode == "bargraph") {
+        bargraph_alltime = false;
+        tou_bargraph(view.start, view.end, "period");
+    } else {
+        powergraph_load(); powergraph_draw();
+    }
+}
+$("#zoomout").click(function () { tou_navigate(function () { view.zoomout(); }); });
+$("#zoomin").click(function () { tou_navigate(function () { view.zoomin(); }); });
+$('#right').click(function () { tou_navigate(function () { view.panright(); }); });
+$('#left').click(function () { tou_navigate(function () { view.panleft(); }); });
+
+timebar_manual(function () { tou_navigate(function () {}); });
+timebar_now(function () { powergraph_load(); powergraph_draw(); });
+
 $(".viewhistory").click(function () {
-    $(".powergraph-navigation").hide();
+    if (viewmode == "bargraph") return;
     var timeWindow = (3600000*24.0*30);
     var end = (new Date()).getTime();
     var start = end - timeWindow;
     viewmode = "bargraph";
-    bargraph_load(start,end);
-    bargraph_draw();
-    $(".bargraph-navigation").show();
+    bargraph_alltime = false;
+    tou_bargraph(start, end, "month");
+});
+
+// Power view of the last 24 hours
+$(".viewpower").click(function () {
+    if (viewmode == "powergraph") return;
+    viewmode = "powergraph";
+    view.timewindow(1);
+    powergraph_load();
+    powergraph_draw();
 });
 
 $("#advanced-toggle").click(function () { 
@@ -346,7 +343,8 @@ $("#advanced-toggle").click(function () {
     }
 });
 
-$('#placeholder').bind("plothover", function (event, pos, item) {
+document.getElementById('placeholder').addEventListener("plothover", function (event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item) {
         var z = item.dataIndex;
         var seriesIndex = item.seriesIndex;
@@ -384,26 +382,27 @@ $('#placeholder').bind("plothover", function (event, pos, item) {
 });
 
 // Auto click through to power graph
-$('#placeholder').bind("plotclick", function (event, pos, item)
+document.getElementById('placeholder').addEventListener("plotclick", function (event)
 {
+    var pos = event.detail[0], item = event.detail[1];
     if (item && !panning && viewmode=="bargraph") {
         var z = item.dataIndex;
         view.start = bargraph_series[0].data[z][0];
         view.end = view.start + 86400*1000;
-        $(".bargraph-navigation").hide();
         viewmode = "powergraph";
         powergraph_load();
         powergraph_draw();
-        $(".powergraph-navigation").show();
     }
 });
 
-$('#placeholder').bind("plotselected", function (event, ranges) {
+document.getElementById('placeholder').addEventListener("plotselected", function (event) {
+    var ranges = event.detail[0];
     var start = ranges.xaxis.from;
     var end = ranges.xaxis.to;
     panning = true; 
 
     if (viewmode=="bargraph") {
+        bargraph_alltime = false;
         bargraph_load(start,end);
         bargraph_draw();
     } else {
@@ -412,35 +411,6 @@ $('#placeholder').bind("plotselected", function (event, ranges) {
         powergraph_draw();
     }
     setTimeout(function() { panning = false; }, 100);
-});
-
-$('.bargraph-alltime').click(function () {
-    var start = start_time * 1000;
-    var end = (new Date()).getTime();
-    bargraph_load(start,end);
-    bargraph_draw();
-    period_text = "period";
-    energystacks_draw();
-});
-
-$('.bargraph-week').click(function () {
-    var timeWindow = (3600000*24.0*7);
-    var end = (new Date()).getTime();
-    var start = end - timeWindow;
-    bargraph_load(start,end);
-    bargraph_draw();
-    period_text = "week";
-    energystacks_draw();
-});
-
-$('.bargraph-month').click(function () {
-    var timeWindow = (3600000*24.0*30);
-    var end = (new Date()).getTime();
-    var start = end - timeWindow;
-    bargraph_load(start,end);
-    bargraph_draw();
-    period_text = "month";
-    energystacks_draw();
 });
 
 $("#heating").click(function() {
@@ -456,18 +426,13 @@ $("#transport").click(function() {
 });
 
 $(".viewcostenergy").click(function(){
-    var view = $(this).html();
-    if (view=="ENERGY MODE") {
-        $(this).html("COST MODE");
-        viewcostenergy = "cost";
-    } else {
-        $(this).html("ENERGY MODE");
-        viewcostenergy = "energy";
-    }
-    
-    $(".powergraph-navigation").hide();
+    var mode = $(this).attr("data-mode");
+    if (mode == viewcostenergy) return;
+    viewcostenergy = mode;
+    $(".viewcostenergy").removeClass("active");
+    $(this).addClass("active");
+
     viewmode = "bargraph";
-    $(".bargraph-navigation").show();
     show();
 });
 
@@ -528,8 +493,8 @@ function powergraph_load()
     }
     
     powergraph_series = [];
-    powergraph_series.push({data:data["use_standard"], yaxis:1, color:"#44b3e2", lines:{show:true, fill:0.8, lineWidth:0}});
-    powergraph_series.push({data:data["use_economy7"], yaxis:1, color:"#1d8dbc", lines:{show:true, fill:0.8, lineWidth:0}});
+    powergraph_series.push({label:"Day", data:data["use_standard"], yaxis:1, color:"#44b3e2", lines:{show:true, fill:0.8, lineWidth:0}});
+    powergraph_series.push({label:"Night", data:data["use_economy7"], yaxis:1, color:"#1d8dbc", lines:{show:true, fill:0.8, lineWidth:0}});
     
     var feedstats = {};
     feedstats["use"] = stats(data["use"]);
@@ -543,12 +508,12 @@ function powergraph_load()
     var out = "";
     for (var z in feedstats) {
         out += "<tr>";
-        out += "<td style='text-align:left'>"+z+"</td>";
-        out += "<td style='text-align:center'>"+feedstats[z].minval.toFixed(0)+"</td>";
-        out += "<td style='text-align:center'>"+feedstats[z].maxval.toFixed(0)+"</td>";
-        out += "<td style='text-align:center'>"+feedstats[z].diff.toFixed(0)+"</td>";
-        out += "<td style='text-align:center'>"+feedstats[z].mean.toFixed(0)+"</td>";
-        out += "<td style='text-align:center'>"+feedstats[z].stdev.toFixed(0)+"</td>";
+        out += "<td>"+z+"</td>";
+        out += "<td class='text-center'>"+feedstats[z].minval.toFixed(0)+"</td>";
+        out += "<td class='text-center'>"+feedstats[z].maxval.toFixed(0)+"</td>";
+        out += "<td class='text-center'>"+feedstats[z].diff.toFixed(0)+"</td>";
+        out += "<td class='text-center'>"+feedstats[z].mean.toFixed(0)+"</td>";
+        out += "<td class='text-center'>"+feedstats[z].stdev.toFixed(0)+"</td>";
         out += "</tr>";
     }
     $("#stats").html(out);
@@ -557,16 +522,16 @@ function powergraph_load()
 function powergraph_draw() 
 {
     var options = {
-        lines: { fill: false },
+        series: { lines: { fill: false, lineWidth: 2 } },
         xaxis: { 
-            mode: "time", timezone: "browser", 
+            mode: "time", timezone: "browser", timeBase: "milliseconds", autoScale: "none",
             min: view.start, max: view.end, 
-            font: {size:flot_font_size, color:"#666"},
+            font: {size:flot_font_size, color: flot_font_color(), fill: flot_font_color()},
             reserveSpace:false
         },
         yaxes: [
-            { min: 0,font: {size:flot_font_size, color:"#666"},reserveSpace:false},
-            {font: {size:flot_font_size, color:"#666"},reserveSpace:false}
+            { min: 0, autoScale: "none", font: {size:flot_font_size, color: flot_font_color(), fill: flot_font_color()},reserveSpace:false},
+            {font: {size:flot_font_size, color: flot_font_color(), fill: flot_font_color()},reserveSpace:false}
         ],
         grid: {
             show:true, 
@@ -578,10 +543,12 @@ function powergraph_draw()
             // axisMargin:0
             margin:{top:30}
         },
-        selection: { mode: "x" },
-        legend:{position:"NW", noColumns:4}
+        selection: { mode: "x", color: "#e8cfac", visualization: "fill" },
+        legend: { show: false }
     }
-    $.plot($('#placeholder'),powergraph_series,options);
+    Flot.plot(document.getElementById('placeholder'),powergraph_series,options);
+    chart_legend(powergraph_series);
+    tou_timebar_sync();
 }
 
 function bargraph_load(start,end) 
@@ -594,6 +561,9 @@ function bargraph_load(start,end)
     var intervalms = interval * 1000;
     end = Math.ceil(end/intervalms)*intervalms;
     start = Math.floor(start/intervalms)*intervalms;
+    // Daily window for the time bar, zoom and pan
+    view.start = start;
+    view.end = end;
     
 
     var offpeak_start = config.app.economy7_start.value*1;
@@ -663,32 +633,32 @@ function bargraph_load(start,end)
     bargraph_series = [];
     
     bargraph_series.push({
-        stack: true,
+        stack: true, label: "Night",
         data: data["economy7"], color: "#1d8dbc",
-        bars: { show: true, align: "center", barWidth: 0.75*3600*24*1000, fill: 1.0, lineWidth:0}
+        bars: { show: true, align: "center", barWidth: [0.75*3600*24*1000, true], fill: 1.0, lineWidth:0}
     });
     
     bargraph_series.push({
-        stack: true,
+        stack: true, label: "Day",
         data: data["standard"], color: "#44b3e2",
-        bars: { show: true, align: "center", barWidth: 0.75*3600*24*1000, fill: 1.0, lineWidth:0}
+        bars: { show: true, align: "center", barWidth: [0.75*3600*24*1000, true], fill: 1.0, lineWidth:0}
     });
     
     if (viewcostenergy=="energy") {
         if (typeof daytime_total_kwh === 'undefined') daytime_total_kwh = 0;
         if (typeof nighttime_total_kwh === 'undefined') nighttime_total_kwh = 0;
 
-        $("#daytime_total_kwh").html(daytime_total_kwh.toFixed(1)+" kWh");
-        $("#daytime_average_kwhd").html((daytime_total_kwh/n).toFixed(1)+" kWh/d");
+        $("#daytime_total_kwh").html(daytime_total_kwh.toFixed(1)+"<span class='power-unit-static'>kWh</span>");
+        $("#daytime_average_kwhd").html((daytime_total_kwh/n).toFixed(1)+"<span class='power-unit-static'>kWh/d</span>");
         
-        $("#nighttime_total_kwh").html(nighttime_total_kwh.toFixed(1)+" kWh");
-        $("#nighttime_average_kwhd").html((nighttime_total_kwh/n).toFixed(1)+" kWh/d");
+        $("#nighttime_total_kwh").html(nighttime_total_kwh.toFixed(1)+"<span class='power-unit-static'>kWh</span>");
+        $("#nighttime_average_kwhd").html((nighttime_total_kwh/n).toFixed(1)+"<span class='power-unit-static'>kWh/d</span>");
     } else {
         $("#daytime_total_kwh").html(config.app.currency.value+(daytime_total_kwh*config.app.unitcost_day.value).toFixed(2));
-        $("#daytime_average_kwhd").html(config.app.currency.value+(daytime_total_kwh*config.app.unitcost_day.value/n).toFixed(2)+"/day");
+        $("#daytime_average_kwhd").html(config.app.currency.value+(daytime_total_kwh*config.app.unitcost_day.value/n).toFixed(2)+"<span class='power-unit-static'>/day</span>");
         
         $("#nighttime_total_kwh").html(config.app.currency.value+(nighttime_total_kwh*config.app.unitcost_night.value).toFixed(2));
-        $("#nighttime_average_kwhd").html(config.app.currency.value+(nighttime_total_kwh*config.app.unitcost_night.value/n).toFixed(2)+"/day");
+        $("#nighttime_average_kwhd").html(config.app.currency.value+(nighttime_total_kwh*config.app.unitcost_night.value/n).toFixed(2)+"<span class='power-unit-static'>/day</span>");
     }
 
     if (typeof data["economy7"][data["economy7"].length-1] !== 'undefined') {
@@ -697,7 +667,7 @@ function bargraph_load(start,end)
         var kwh_today = 0;
     }
 
-    $("#kwh_today").html(kwh_today.toFixed(1)+" kWh");
+    $("#kwh_today").html(kwh_today.toFixed(1)+"<span class='power-unit-static'>kWh</span>");
     
     //if (viewcostenergy=="energy") {
     //    $("#kwh_today").html(kwh_today.toFixed(1));
@@ -712,17 +682,20 @@ function bargraph_draw()
         xaxis: { 
             mode: "time", 
             timezone: "browser", 
-            font: {size:flot_font_size, color:"#666"}, 
+            timeBase: "milliseconds",
+            font: {size:flot_font_size, color: flot_font_color(), fill: flot_font_color()}, 
             // labelHeight:-5
             reserveSpace:false
         },
         yaxis: { 
-            font: {size:flot_font_size, color:"#666"}, 
+            font: {size:flot_font_size, color: flot_font_color(), fill: flot_font_color()}, 
             // labelWidth:-5
             reserveSpace:false,
-            min:0
+            min:0,
+            autoScale: "none"
         },
-        selection: { mode: "x" },
+        selection: { mode: "x", color: "#e8cfac", visualization: "fill" },
+        legend: { show: false },
         grid: {
             show:true, 
             color:"#aaa",
@@ -732,8 +705,10 @@ function bargraph_draw()
         }
     }
 
-    var plot = $.plot($('#placeholder'),bargraph_series,options);
-    $('#placeholder').append("<div id='bargraph-label' style='position:absolute;left:50px;top:30px;color:#666;font-size:12px'></div>");
+    var plot = Flot.plot(document.getElementById('placeholder'),bargraph_series,options);
+    $('#placeholder').append("<div id='bargraph-label' style='position:absolute;left:50px;top:30px;color:var(--bs-secondary-color);font-size:12px'></div>");
+    chart_legend(bargraph_series);
+    tou_timebar_sync();
 }
 
 function energystacks_draw()
@@ -826,17 +801,6 @@ function resize() {
     placeholder.width(width);
     placeholder_bound.height(height);
     placeholder.height(height-top_offset);
-    
-    if (width<=500) {
-        $(".electric-title").css("font-size","16px");
-        $(".power-value").css("font-size","38px");
-    } else if (width<=724) {
-        $(".electric-title").css("font-size","18px");
-        $(".power-value").css("font-size","52px");
-    } else {
-        $(".electric-title").css("font-size","22px");
-        $(".power-value").css("font-size","52px");
-    }
 }
 
 $(function() {

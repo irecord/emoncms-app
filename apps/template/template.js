@@ -35,19 +35,21 @@ config.hideapp = function () {
 var series = [];
 
 var options = {
-    canvas: true,
-    lines: {
-        show: true,
-        fill: 0.75,
-        lineWidth: 0
+    series: {
+        lines: {
+            show: true,
+            fill: 0.75,
+            lineWidth: 0
+        }
     },
     xaxis: {
         mode: "time",
-        timezone: "browser"
+        timezone: "browser",
+        timeBase: "milliseconds",
+        autoScale: "none"
     },
     grid: {
         show: true,
-        color: "#aaa",
         borderWidth: 0,
         hoverable: true
     },
@@ -56,7 +58,8 @@ var options = {
     },
     selection: { 
         mode: "x",
-        color: "#555"
+        color: "#555",
+        visualization: "fill"
     }
 };
 
@@ -66,7 +69,9 @@ var previousPoint = null;
 config.init();
 
 function init() {
-
+    // Start and End fields, and the Now button, from Lib/vis.helper.js
+    timebar_manual(load);
+    timebar_now(load);
 }
 
 function show() {
@@ -82,7 +87,7 @@ function show() {
     if (view.end * 0.001 > meta.end_time) {
         view.end = meta.end_time * 1000;
     }
-    // Set start time to 7 days ago
+    // Start 24 hours before end
     view.start = view.end - (3600000 * 24.0 * 1);
 
     load();
@@ -117,13 +122,16 @@ function load() {
 }
 
 function draw() {
-    $.plot($('#graph'), series, options);
+    Flot.plot(document.getElementById('graph'), series, options);
+    chart_legend(series);
+    timebar_update(false);
 }
 
 function updater() {
     var use = config.app.use.value;
     var feeds = feed.listbyid();
     $("#powernow").html((feeds[use].value * 1).toFixed(0));
+    live_status_update(feeds[use].time);
 }
 
 function resize() {
@@ -142,13 +150,16 @@ $("#zoomin").click(function () { view.zoomin(); load(); });
 $('#right').click(function () { view.panright(); load(); });
 $('#left').click(function () { view.panleft(); load(); });
 
-$('.time').click(function () {
-    view.timewindow($(this).attr("time") / 24.0);
+$('#time-select').change(function () {
+    var hours = parseFloat($(this).val());
+    if (!hours) return;
+    view.timewindow(hours / 24.0);
     load();
 });
 
 // Tooltip code
-$('#graph').bind("plothover", function (event, pos, item) {
+document.getElementById('graph').addEventListener("plothover", function (event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item) {
         var i = item.dataIndex;
 
@@ -165,7 +176,8 @@ $('#graph').bind("plothover", function (event, pos, item) {
     } else $("#tooltip").remove();
 });
 
-$('#graph').bind("plotselected", function (event, ranges) {
+document.getElementById('graph').addEventListener("plotselected", function (event) {
+    var ranges = event.detail[0];
     view.start = ranges.xaxis.from;
     view.end = ranges.xaxis.to;
     load();

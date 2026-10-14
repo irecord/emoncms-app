@@ -10,15 +10,6 @@ var profile_mode = false;
 
 var show_carbonintensity = $("#show_carbonintensity")[0].checked;
 
-// ----------------------------------------------------------------------
-// Display
-// ----------------------------------------------------------------------
-$("body").css('background-color', 'WhiteSmoke');
-$(window).ready(function() {
-    //$("#footer").css('background-color','#181818');
-    //$("#footer").css('color','#999');
-});
-
 if (!sessionwrite) $(".config-open").hide();
 
 // ----------------------------------------------------------------------
@@ -40,7 +31,9 @@ var tariff_options = [
     "INTELLI-VAR-OEV-24-07-17",
     "SNUG-24-11-07",
     "COSY-22-12-08",
-    "FLUX-IMPORT-23-02-14"
+    "FLUX-IMPORT-23-02-14",
+    "BUS-12M-FIXED-SHAPE-SHIFTER-25-05-23",
+    "AGILE-BUS-25-02-05"
     // Custom opens tariff builder
     // "CUSTOM"
 ];
@@ -172,24 +165,15 @@ var use_meter_kwh_hh = false;
 
 var profile_kwh = {};
 var profile_cost = {};
+// Range select value while the window matches it, null after zoom or pan
+var te_period = 'T';
 
 config.init();
 
 function init() {
-    $("#datetimepicker1").datetimepicker({
-        language: 'en-EN'
-    });
-
-    $("#datetimepicker2").datetimepicker({
-        language: 'en-EN'
-    });
-
-    datetimepicker1 = $('#datetimepicker1').data('datetimepicker');
-    datetimepicker2 = $('#datetimepicker2').data('datetimepicker');
 }
 
 function show() {
-    $("body").css('background-color', 'WhiteSmoke');
     $("#app-title").html(config.app.title.value);
 
     // Quick translation of feed ids
@@ -227,6 +211,7 @@ function show() {
 }
 
 function setPeriod(period) {
+    te_period = period;
     switch (period) {
         case 'T':
             //Today
@@ -301,10 +286,11 @@ function updater() {
 
         if (feeds["import"] != undefined) {
             if (feeds["import"].value < 10000) {
-                $("#power_now").html(Math.round(feeds["import"].value) + "<span class='units'>W</span>");
+                $("#power_now").html(Math.round(feeds["import"].value) + "<span class='power-unit'>W</span>");
             } else {
-                $("#power_now").html((feeds["import"].value * 0.001).toFixed(1) + "<span class='units'>kW</span>");
+                $("#power_now").html((feeds["import"].value * 0.001).toFixed(1) + "<span class='power-unit'>kW</span>");
             }
+            live_status_update(feeds["import"].time);
         }
     });
 }
@@ -331,15 +317,6 @@ function graph_load() {
     var intervalms = interval * 1000;
     view.start = Math.ceil(view.start / intervalms) * intervalms;
     view.end = Math.ceil(view.end / intervalms) * intervalms;
-
-    if (datetimepicker1) {
-        datetimepicker1.setLocalDate(new Date(view.start));
-        datetimepicker1.setEndDate(new Date(view.end));
-    }
-    if (datetimepicker2) {
-        datetimepicker2.setLocalDate(new Date(view.end));
-        datetimepicker2.setStartDate(new Date(view.start));
-    }
 
     // Determine if required solar PV feeds are available
     if (feeds["use_kwh"] != undefined && feeds["solar_kwh"] != undefined) {
@@ -656,6 +633,11 @@ function graph_load() {
     draw_tables(total, monthly_data);
 }
 
+// Unit price inc VAT, -- when there is no energy in the window
+function pence_per_kwh(unit_cost) {
+    return isFinite(unit_cost) ? (unit_cost * 100 * 1.05).toFixed(1) + "p/kWh (inc VAT)" : "--";
+}
+
 function draw_tables(total, monthly_data) {
 
     var unit_cost_import_tariff_A = (total.import_tariff_A.cost / total.import_tariff_A.kwh);
@@ -663,25 +645,25 @@ function draw_tables(total, monthly_data) {
 
     var out = "";
     out += "<tr>";
-    out += "<td><select id='tariff_A'>";
+    out += "<td><select id='tariff_A' class='form-select input-220'>";
     for (var key in tariff_options) {
         out += "<option>" + tariff_options[key] + "</option>";
     }
     out += "</select></td>";
     out += "<td>" + total.import_tariff_A.kwh.toFixed(1) + " kWh</td>";
     out += "<td>£" + (total.import_tariff_A.cost * 1.05).toFixed(2) + "</td>";
-    out += "<td>" + (unit_cost_import_tariff_A * 100 * 1.05).toFixed(1) + "p/kWh (inc VAT)</td>";
+    out += "<td>" + pence_per_kwh(unit_cost_import_tariff_A) + "</td>";
     out += "</tr>";
 
     out += "<tr>";
-    out += "<td><select id='tariff_B'>";
+    out += "<td><select id='tariff_B' class='form-select input-220'>";
     for (var key in tariff_options) {
         out += "<option>" + tariff_options[key] + "</option>";
     }
     out += "</select></td>";
     out += "<td>" + total.import_tariff_B.kwh.toFixed(1) + " kWh</td>";
     out += "<td>£" + (total.import_tariff_B.cost * 1.05).toFixed(2) + "</td>";
-    out += "<td>" + (unit_cost_import_tariff_B * 100 * 1.05).toFixed(1) + "p/kWh (inc VAT)</td>";
+    out += "<td>" + pence_per_kwh(unit_cost_import_tariff_B) + "</td>";
     out += "</tr>";
 
     if (show_carbonintensity) {
@@ -695,7 +677,7 @@ function draw_tables(total, monthly_data) {
         out += "<td>Export</td>";
         out += "<td>" + total.export_tariff.kwh.toFixed(1) + " kWh</td>";
         out += "<td>£" + total.export_tariff.cost.toFixed(2) + "</td>";
-        out += "<td>" + (unit_cost_export * 100 * 1.05).toFixed(1) + "p/kWh (inc VAT)</td>";
+        out += "<td>" + pence_per_kwh(unit_cost_export) + "</td>";
         out += "</tr>";
     }
 
@@ -705,7 +687,7 @@ function draw_tables(total, monthly_data) {
         out += "<td>Solar self consumption</td>";
         out += "<td>" + total.solar_used.kwh.toFixed(1) + " kWh</td>";
         out += "<td>£" + total.solar_used.cost.toFixed(2) + "</td>";
-        out += "<td>" + (unit_cost_solar_used * 100 * 1.05).toFixed(1) + "p/kWh (inc VAT)</td>";
+        out += "<td>" + pence_per_kwh(unit_cost_solar_used) + "</td>";
         out += "</tr>";
 
         var unit_cost_solar_combined = ((total.solar_used.cost + total.export_tariff.cost) / (total.solar_used.kwh + total.export_tariff.kwh));
@@ -713,7 +695,7 @@ function draw_tables(total, monthly_data) {
         out += "<td>Solar + Export</td>";
         out += "<td>" + (total.solar_used.kwh + total.export_tariff.kwh).toFixed(1) + " kWh</td>";
         out += "<td>£" + (total.solar_used.cost + total.export_tariff.cost).toFixed(2) + "</td>";
-        out += "<td>" + (unit_cost_solar_combined * 100 * 1.05).toFixed(1) + "p/kWh (inc VAT)</td>";
+        out += "<td>" + pence_per_kwh(unit_cost_solar_combined) + "</td>";
         out += "</tr>";
     }
 
@@ -775,7 +757,7 @@ function draw_tables(total, monthly_data) {
             }
 
             // link icon that zooms to month
-            monthly_out += "<td><i class='icon-eye-open zoom-to-month' timestamp='"+month+"' style='cursor:pointer'></i></td>";
+            monthly_out += "<td><span class='svg-icon-eye zoom-to-month' timestamp='"+month+"' style='cursor:pointer'></span></td>";
             monthly_out += "</tr>";
 
             monthly_sum_kwh += monthly_data[month]["import"];
@@ -813,16 +795,16 @@ function graph_draw() {
         let kwh_last_halfhour = data["import"][this_halfhour_index][1];
 
         if (kwh_last_halfhour != null) {
-            $("#kwh_halfhour").html(kwh_last_halfhour.toFixed(2) + "<span class='units'>kWh</span>");
+            $("#kwh_halfhour").html(kwh_last_halfhour.toFixed(2) + "<span class='power-unit-static'>kWh</span>");
         } else {
             $("#kwh_halfhour").html("N/A");
         }
 
         let cost_last_halfhour = data["import_cost_tariff_A"][this_halfhour_index][1] * 100;
-        $("#cost_halfhour").html("(" + cost_last_halfhour.toFixed(2) + "<span class='units'>p</span>)");
+        $("#cost_halfhour").html(" (" + cost_last_halfhour.toFixed(2) + "p)");
 
         let unit_price = data["tariff_A"][this_halfhour_index][1] * 1.05;
-        $("#unit_price").html(unit_price.toFixed(2) + "<span class='units'>p</span>");
+        $("#unit_price").html(unit_price.toFixed(2) + "<span class='power-unit-static'>p</span>");
 
         $(".last_halfhour_stats").show();
     } else {
@@ -832,7 +814,7 @@ function graph_draw() {
     var bars = {
         show: true,
         align: "left",
-        barWidth: 0.9 * 1800 * 1000,
+        barWidth: [0.9 * 1800 * 1000, true],
         fill: 1.0,
         lineWidth: 0
     };
@@ -957,11 +939,14 @@ function graph_draw() {
         xaxis: {
             mode: "time",
             timezone: "browser",
+            timeBase: "milliseconds",
+            autoScale: "none",
             min: view.start,
             max: view.end,
             font: {
                 size: flot_font_size,
-                color: "#666"
+                color: flot_font_color(),
+                fill: flot_font_color()
             },
             reserveSpace: false
         },
@@ -969,18 +954,21 @@ function graph_draw() {
                 position: 'left',
                 font: {
                     size: flot_font_size,
-                    color: "#666"
+                    color: flot_font_color(),
+                    fill: flot_font_color()
                 },
                 reserveSpace: false
             },
             {
-                position: 'left',
+                // Unit price scale on the right, coloured as tariff A
+                position: 'right',
+                labelWidth: 36,
                 alignTicksWithAxis: 1,
                 font: {
                     size: flot_font_size,
-                    color: "#666"
-                },
-                reserveSpace: false
+                    color: "#fb1a80",
+                    fill: "#fb1a80"
+                }
             }
         ],
         grid: {
@@ -988,22 +976,26 @@ function graph_draw() {
             color: "#aaa",
             borderWidth: 0,
             hoverable: true,
-            clickable: true,
-            // labelMargin:0,
-            // axisMargin:0
-            margin: {
-                top: 30
-            }
+            clickable: true
         },
         selection: {
-            mode: "x"
+            mode: "x",
+            color: "#e8cfac",
+            visualization: "fill"
         },
         legend: {
-            position: "NW",
-            noColumns: 6
+            show: false
         }
     }
-    $.plot($('#placeholder'), graph_series, options);
+    Flot.plot(document.getElementById('placeholder'), graph_series, options);
+    chart_legend(graph_series);
+    te_timebar_sync();
+}
+
+// Time bar after a redraw. Named periods such as Today keep their name.
+function te_timebar_sync() {
+    timebar_update(false);
+    if (te_period) $("#time-select").val(te_period);
 }
 
 
@@ -1027,20 +1019,6 @@ function resize() {
     placeholder.width(width);
     placeholder_bound.height(height);
     placeholder.height(height - top_offset);
-
-    if (width <= 500) {
-        $(".electric-title").css("font-size", "14px");
-        $(".power-value").css("font-size", "36px");
-        $(".halfhour-value").css("font-size", "26px");
-    } else if (width <= 724) {
-        $(".electric-title").css("font-size", "16px");
-        $(".power-value").css("font-size", "50px");
-        $(".halfhour-value").css("font-size", "40px");
-    } else {
-        $(".electric-title").css("font-size", "20px");
-        $(".power-value").css("font-size", "50px");
-        $(".halfhour-value").css("font-size", "40px");
-    }
 }
 
 $(function() {
@@ -1096,19 +1074,6 @@ function download_data(filename, data) {
         elem.click();
         document.body.removeChild(elem);
     }
-}
-
-function parseTimepickerTime(timestr) {
-    var tmp = timestr.split(" ");
-    if (tmp.length != 2) return false;
-
-    var date = tmp[0].split("/");
-    if (date.length != 3) return false;
-
-    var time = tmp[1].split(":");
-    if (time.length != 3) return false;
-
-    return new Date(date[2], date[1] - 1, date[0], time[0], time[1], time[2], 0).getTime() / 1000;
 }
 
 function getdataremote(id, start, end, interval) {
@@ -1194,7 +1159,8 @@ function calibration_line_of_best_fit(import_kwh, meter_kwh_hh)
 // -------------------------------------------------------------------------------
 // EVENTS
 // -------------------------------------------------------------------------------
-$('#placeholder').bind("plothover", function(event, pos, item) {
+document.getElementById('placeholder').addEventListener("plothover", function(event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item) {
         var z = item.dataIndex;
 
@@ -1291,72 +1257,43 @@ $('#placeholder').bind("plothover", function(event, pos, item) {
 });
 
 
-$("#zoomout").click(function() {
-    view.zoomout();
+// Zoom and pan, then reload
+function te_navigate(move) {
+    te_period = null;
+    move();
     graph_load();
     graph_draw();
-});
-$("#zoomin").click(function() {
-    view.zoomin();
-    graph_load();
-    graph_draw();
-});
-$('#right').click(function() {
-    view.pan_speed = 0.5;
-    view.panright();
-    graph_load();
-    graph_draw();
-});
-$('#left').click(function() {
-    view.pan_speed = 0.5;
-    view.panleft();
-    graph_load();
-    graph_draw();
-});
-$('#fastright').click(function() {
-    view.pan_speed = 1.0;
-    view.panright();
-    graph_load();
-    graph_draw();
-});
-$('#fastleft').click(function() {
-    view.pan_speed = 1.0;
-    view.panleft();
-    graph_load();
-    graph_draw();
-});
+}
+$("#zoomout").click(function() { te_navigate(function() { view.zoomout(); }); });
+$("#zoomin").click(function() { te_navigate(function() { view.zoomin(); }); });
+$('#right').click(function() { te_navigate(function() { view.pan_speed = 0.5; view.panright(); }); });
+$('#left').click(function() { te_navigate(function() { view.pan_speed = 0.5; view.panleft(); }); });
+$('#fastright').click(function() { te_navigate(function() { view.pan_speed = 1.0; view.panright(); }); });
+$('#fastleft').click(function() { te_navigate(function() { view.pan_speed = 1.0; view.panleft(); }); });
 
-$('.time').click(function() {
-    setPeriod($(this).attr("time"));
-    // view.timewindow(period);
-    graph_load();
-    graph_draw();
-});
+// Start and End fields, and Now, from Lib/vis.helper.js
+timebar_manual(function() { te_navigate(function() {}); });
+timebar_now(function() { te_navigate(function() {}); });
 
-$('.time-select').change(function() {
+$('#time-select').change(function() {
     var val = $(this).val();
-
-    if (val == "C") {
-
-    } else {
-        setPeriod(val);
-        // view.timewindow(period);
-        graph_load();
-        graph_draw();
-    }
+    if (!val) return;
+    setPeriod(val);
+    graph_load();
+    graph_draw();
 });
 
-$('#placeholder').bind("plotselected", function(event, ranges) {
+document.getElementById('placeholder').addEventListener("plotselected", function(event) {
+    var ranges = event.detail[0];
     var start = ranges.xaxis.from;
     var end = ranges.xaxis.to;
     panning = true;
 
+    te_period = null;
     view.start = start;
     view.end = end;
     graph_load();
     graph_draw();
-
-    $(".time-select").val("C");
 
     setTimeout(function() {
         panning = false;
@@ -1375,13 +1312,10 @@ $("#monthly-data").on("click", ".zoom-to-month", function() {
     d.setDate(0);
     d.setHours(23, 59, 59, 0);
     view.end = d.getTime();
-    
 
+    te_period = null;
     graph_load();
     graph_draw();
-
-    // set period to custom
-    $(".time-select").val("C");
 
     return false;
 });
@@ -1444,38 +1378,4 @@ $("#download-csv").click(function() {
     }
 
     download_data("tariff-data.csv", csv.join("\n"));
-});
-
-$('#datetimepicker1').on("changeDate", function(e) {
-    var timewindowStart = parseTimepickerTime($("#request-start").val());
-    if (!timewindowStart) {
-        alert("Please enter a valid start date.");
-        return false;
-    }
-    if (timewindowStart * 1000 >= view.end) {
-        alert("Start date must be further back in time than end date.");
-        return false;
-    }
-
-    view.start = timewindowStart * 1000;
-    graph_load();
-    graph_draw();
-    $(".time-select").val("C");
-});
-
-$('#datetimepicker2').on("changeDate", function(e) {
-    var timewindowEnd = parseTimepickerTime($("#request-end").val());
-    if (!timewindowEnd) {
-        alert("Please enter a valid end date.");
-        return false;
-    }
-    if (view.start >= timewindowEnd * 1000) {
-        alert("Start date must be further back in time than end date.");
-        return false;
-    }
-
-    view.end = timewindowEnd * 1000;
-    graph_load();
-    graph_draw();
-    $(".time-select").val("C");
 });

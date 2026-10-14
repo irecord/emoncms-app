@@ -193,6 +193,7 @@ function process_stats() {
         "heatpump_elec": { name: "HP electric consumption", unit: "W", dp: 0 },
         "heatpump_heat": { name: "HP heat output", unit: "W", dp: 0 },
         "immersion_elec": { name: "Immersion/backup", unit: "W", dp: 0 },
+        "boiler_heat": { name: "Boiler heat output", unit: "W", dp: 0 },
         "heatpump_heat_carnot": { name: "Simulated heat output", unit: "W", dp: 0 },
         "heatpump_flowT": { name: "Flow temperature", unit: "°C", dp: 1 },
         "heatpump_returnT": { name: "Return temperature", unit: "°C", dp: 1 },
@@ -237,11 +238,14 @@ function process_stats() {
         let power = data["heatpump_elec"][z][1];
 
         let dhw = false;
-        if (dhw_enable) dhw = data["heatpump_dhw"][z][1];
+        if (dhw_enable && data["heatpump_dhw"][z] != undefined) {
+            dhw = data["heatpump_dhw"][z][1];
+        }
 
         let cool = false;
-        if (cooling_enable && data["heatpump_cooling"][z] != undefined) cool = data["heatpump_cooling"][z][1];
-
+        if (cooling_enable && data["heatpump_cooling"][z] != undefined) {
+            cool = data["heatpump_cooling"][z][1];
+        }
 
         // let ch = false;
         // if (data["heatpump_ch"]!=undefined) ch = data["heatpump_ch"][z][1];
@@ -316,15 +320,15 @@ function process_stats() {
 
                 var minval_str = "";
                 if (stats[x][key].minval != null) minval_str = (1*stats[x][key].minval).toFixed(feed_options[key].dp) + " " + feed_options[key].unit;
-                out += "<td style='text-align:center; color:#777'>" + minval_str + "</td>";
+                out += "<td style='text-align:center; color:var(--bs-secondary-color)'>" + minval_str + "</td>";
 
                 var maxval_str = "";
                 if (stats[x][key].maxval != null) maxval_str = (1*stats[x][key].maxval).toFixed(feed_options[key].dp) + " " + feed_options[key].unit;
-                out += "<td style='text-align:center; color:#777'>" + maxval_str + "</td>";
+                out += "<td style='text-align:center; color:var(--bs-secondary-color)'>" + maxval_str + "</td>";
 
                 var diff_str = "";
                 if (stats[x][key].diff != null) diff_str = (1*stats[x][key].diff).toFixed(feed_options[key].dp) + " " + feed_options[key].unit;
-                out += "<td style='text-align:center; color:#777'>" + diff_str + "</td>";
+                out += "<td style='text-align:center; color:var(--bs-secondary-color)'>" + diff_str + "</td>";
 
                 out += "<td style='text-align:center'>" + (1*stats[x][key].mean).toFixed(feed_options[key].dp) + " " + feed_options[key].unit + "</td>";
 
@@ -421,8 +425,13 @@ function calculate_window_cops() {
             let dhw = false;
             let cool = false;
 
-            if (dhw_enable) dhw = data["heatpump_dhw"][z][1];
-            if (cooling_enable && data["heatpump_cooling"][z] != undefined) cool = data["heatpump_cooling"][z][1];
+            if (dhw_enable && data["heatpump_dhw"][z] != undefined) {
+                dhw = data["heatpump_dhw"][z][1];
+            }
+
+            if (cooling_enable && data["heatpump_cooling"][z] != undefined) {
+                cool = data["heatpump_cooling"][z][1];
+            }
             
             if (elec != null && heat !=null) {
 
@@ -611,7 +620,7 @@ function carnot_simulator() {
         var practical_carnot_heat_mean = practical_carnot_heat_sum / carnot_heat_n;
         var ideal_carnot_heat_mean = ideal_carnot_heat_sum / carnot_heat_n;
         if (simulate_heat_output && !show_as_prc_of_carnot) {
-            powergraph_series['carnot'] = { label: "Carnot Heat", data: data["heatpump_heat_carnot"], yaxis: 1, color: 7, lines: { show: true, fill: 0.05, lineWidth: 0.8 } };
+            powergraph_series['carnot'] = { label: "Carnot Heat", data: data["heatpump_heat_carnot"], yaxis: 1, color: flot_color(7), lines: { show: true, fill: 0.05, lineWidth: 0.8 } };
             // Uncomment to show simulated flow rate (experimental)
             // powergraph_series['sim_flow_rate'] = { label: "Simulated flow rate", data: data["sim_flow_rate"], yaxis: 3, color: "#000", lines: { show: true, fill: false, lineWidth: 1.0 } };
         }

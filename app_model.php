@@ -26,8 +26,8 @@ class AppConfig
         
         $this->available = $this->load_available();
 
-        // Option to skip db check
-        if (isset($settings['db_check']) && $settings['db_check'] == 0) {
+        // Option to skip the schema check and migration
+        if (isset($settings['app']['auto_migrate']) && !$settings['app']['auto_migrate']) {
             return;
         }
         
@@ -107,10 +107,14 @@ class AppConfig
         }
 
         $apps = array();
-        $result = $this->mysqli->query("SELECT `id`, `app`, `name`, `public` FROM app WHERE `userid`='$userid'");
+        $stmt = $this->mysqli->prepare("SELECT `id`, `app`, `name`, `public` FROM app WHERE `userid`=? ORDER BY `id` ASC");
+        $stmt->bind_param("i", $userid);
+        $stmt->execute();
+        $result = $stmt->get_result();
         while ($row = $result->fetch_object()) {
             $apps[] = $row;
         }
+        $stmt->close();
         return $apps;
     }
     
@@ -432,7 +436,7 @@ class AppConfig
 
         $main_result = $this->mysqli->query("SELECT `userid`, `data` FROM app_config");
         while ($row = $main_result->fetch_object()) {
-            $userid = $row->userid;
+            $userid = (int) $row->userid;
             $applist = json_decode($row->data);
             if (gettype($applist)=="array" || $applist===null) $applist = new stdClass();
 
@@ -441,8 +445,13 @@ class AppConfig
                 // print "Migrating app $name : $app for userid $row->userid\n";
 
                 // Check if app exists with this name in app table
-                $result = $this->mysqli->query("SELECT `id` FROM app WHERE `userid`='$userid' AND `name`='$name'");
-                if ($result->num_rows) {
+                $stmt = $this->mysqli->prepare("SELECT `id` FROM app WHERE `userid`=? AND `name`=?");
+                $stmt->bind_param("is", $userid, $name);
+                $stmt->execute();
+                $stmt->store_result();
+                $num_rows = $stmt->num_rows;
+                $stmt->close();
+                if ($num_rows) {
                     // App already exists (this should not happen)
                     // print "App already exists\n";
                 } else {

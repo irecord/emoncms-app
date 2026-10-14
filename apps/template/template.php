@@ -1,102 +1,78 @@
 <?php
 defined('EMONCMS_EXEC') or die('Restricted access');
 global $path, $session, $v;
+
+load_js("Modules/feed/feed.js");
+load_js("Lib/js/flot-5.1.0.mod.min.js");
+load_js("Modules/app/Lib/vis.helper.js");
+load_js("Lib/js/DateTimePicker.js");
+load_css("Theme/css/datetimepicker.css");
+load_css("Modules/app/Views/css/app-kit.css");
+load_css("Modules/app/apps/template/template.css");
 ?>
-<link href="<?php echo $path; ?>Modules/app/Views/css/config.css?v=1" rel="stylesheet">
-<link href="<?php echo $path; ?>Modules/app/Views/css/dark.css?v=<?php echo $v; ?>" rel="stylesheet">
 
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/appconf.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/feed/feed.js?v=<?php echo $v; ?>"></script>
+<div class="app-page" data-bs-theme="dark">
 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.min.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.time.min.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.selection.min.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/vis.helper.js?v=2"></script>
+<section id="app-block" style="display:none">
 
-<style>
-    /* Dynamic height chart placeholder */
-    /* Adjust the height offset as necessary */
-    .chart-placeholder {
-        --height-offset: 19rem;
-    }
-    @media (min-width: 768px) {
-        .chart-placeholder { --height-offset: 22rem; }
-    }
-    .chart-placeholder>* {
-        height: calc(100vh - var(--height-offset)) !important;
-        min-height: 180px;
-    }
-
-    /* Remove padding from container-fluid, gives a little more screen space */
-    .container-fluid { padding: 0px; }
-    @media (min-width: 768px) {
-        .container-fluid { padding: 0px 20px 0px 20px; }
-    }
-</style>
-
-<!-- Top navigation bar -->
-<nav id="buttons" class="d-flex justify-content-between">
-    <ul id="tabs" class="nav nav-pills mb-0">
-        <li><button class="viewpower active btn btn-large btn-link btn-inverse myelectric-view-cost" title="<?php echo tr('Power View') ?>">
-                <span class="d-xs-none"><?php echo tr("Pwr") ?></span>
-                <span class="d-none d-xs-inline-block"><?php echo tr("Power") ?></span>
-            </button></li>
-    </ul>
-    <ul class="text-right nav nav-pills mb-0">
-        <li><button class="btn btn-large btn-link btn-inverse config-open" title="<?php echo tr('Edit') ?>"><svg class="icon">
-                    <use xlink:href="#icon-wrench"></use>
-                </svg></button></li>
-        <li><button class="btn btn-large btn-link btn-inverse config-close hide" title="<?php echo tr('Close') ?>"><svg class="icon">
-                    <use xlink:href="#icon-close"></use>
-                </svg></button></li>
-    </ul>
-</nav>
-
-<!-- App content -->
-<div id="app-block" style="display:none">
-    <div class="d-flex justify-content-between">
-        <div>
-            <h5 class="electric-title mb-0 text-md-larger text-light"><?php echo tr('POWER') ?></h5>
-            <h2 class="power-value display-sm-4 display-md-3 display-lg-2 mt-0 mb-lg-3 text-primary"><span id="powernow">0</span><span class="power-unit">W</span></h2>
-        </div>
-        <div class="text-xs-right">
-            <h5 class="electric-title mb-0 text-md-larger text-light"><?php echo tr('ENERGY') ?></h5>
-            <h2 class="power-value display-sm-4 display-md-3 display-lg-2 mt-0 mb-lg-3 text-primary "><span id="kwhwindow">---</span><span class="power-unit">kWh</span></h2>
-        </div>
-    </div>
-
-    <?php include(dirname(__DIR__).'/OpenEnergyMonitor/graph-nav.php'); ?>
-
-    <div id="graph_bound" class="chart-placeholder">
-        <div id="graph"></div>
-    </div>
-</div>
-
-<!-- App configuration -->
-<section id="app-setup" class="hide pb-3">
-    <div class="px-3">
-        <div class="row-fluid">
-            <div class="span7 xapp-config-description">
-                <div class="xapp-config-description-inner text-light">
-                    <h2 class="app-config-title text-primary"><?php echo tr('Template'); ?></h2>
-                    <p class="lead">A basic app example useful for developing new apps.</p>
-                    <img src="<?php echo $path; ?><?php echo $appdir; ?>preview.png" class="img-rounded">
+    <!-- Header and live values -->
+    <div class="app-card">
+        <nav class="app-card-head">
+            <div id="tabs" class="nav nav-underline">
+                <button class="nav-link active" title="<?php echo tr('Power view') ?>"><i class="svg-icon-show_chart"></i><?php echo tr('Power') ?></button>
+            </div>
+            <div class="app-card-tools">
+                <span id="live-status" class="app-status"><span class="app-status-dot"></span><span class="app-status-text"></span></span>
+                <div class="nav">
+                    <button class="nav-link config-open" title="<?php echo tr('Configure app') ?>"><i class="svg-icon-wrench"></i></button>
+                    <button class="nav-link config-close d-none" title="<?php echo tr('Close') ?>"><i class="svg-icon-close"></i></button>
                 </div>
             </div>
-            <div class="span5 app-config pt-3"></div>
+        </nav>
+        <div class="app-live">
+            <div>
+                <div class="app-live-label"><?php echo tr('POWER') ?></div>
+                <div class="app-live-value text-use"><span id="powernow">0</span><span class="power-unit">W</span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('ENERGY') ?></div>
+                <div class="app-live-value text-use"><span id="kwhwindow">---</span><span class="power-unit-static">kWh</span></div>
+            </div>
         </div>
     </div>
+
+    <!-- Time bar, chart and legend -->
+    <div class="app-card app-card-body">
+        <div id="graph-nav" class="app-navbar">
+            <?php
+            $timebar_ranges = array(1 => tr('1 hour'), 24 => tr('24 hours'), 168 => tr('1 week'), 720 => tr('1 month'));
+            include "Modules/app/Lib/timebar.php";
+            ?>
+        </div>
+        <?php include "Modules/app/Lib/timebar_manual.php"; ?>
+        <div id="graph"></div>
+        <div id="chart-legend" class="app-legend"></div>
+    </div>
+
 </section>
 
+<div id="appconf-description" style="display:none">
+    <p class="lead">A basic app example useful for developing new apps.</p>
+</div>
+<?php include('Modules/app/Lib/appconf/appconf.php'); ?>
+
 <div class="ajax-loader"></div>
+
+</div>
 
 <script>
     // Transfer php variables to javascript
     var apikey = "<?php print $apikey; ?>";
     var sessionwrite = <?php echo $session['write']; ?>;
+    config.app_name = "Template App";
     config.id = <?php echo $id; ?>;
     config.name = "<?php echo $name; ?>";
     config.public = <?php echo $public; ?>;
     config.db = <?php echo json_encode($config); ?>;
 </script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/template/template.js?v=6"></script>
+<?php load_js("Modules/app/apps/template/template.js"); ?>

@@ -11,7 +11,6 @@ class GraphView {
             return false;
         }
         this.container = container;
-        this.container.load(path + "Modules/app/Lib/graph.php");
         
         if (!$('.graph-tooltip').length) $("<div class='graph-tooltip' style='display:none'></div>").appendTo("body");
         
@@ -138,7 +137,7 @@ class Graph {
     }
 
     reset() {
-        $(".graph-footer .power.action.details", this.view.container).find('span').html("SHOW DETAIL");
+        $(".graph-footer .details", this.view.container).html("Show detail");
         $(".graph-stats", this.view.container).hide();
         
         return load();
@@ -146,7 +145,10 @@ class Graph {
 
     events() {
         var plot = $('.graph', this.view.container).off();
-        plot.on('plothover', function(event, pos, item) {
+        for (var e in this.plotHandlers) plot[0].removeEventListener(e, this.plotHandlers[e]);
+        this.plotHandlers = {};
+        plot[0].addEventListener('plothover', this.plotHandlers.plothover = function(event) {
+            var pos = event.detail[0], item = event.detail[1];
             if (typeof item !== 'undefined' && item !== null) {
                 if (this.item === null || this.item != item) {
                     this.item = item;
@@ -205,7 +207,8 @@ class Graph {
         }.bind(this));
 
         // Auto click through to power graph
-        plot.on('plotclick', function(event, pos, item) {
+        plot[0].addEventListener('plotclick', this.plotHandlers.plotclick = function(event) {
+            var pos = event.detail[0], item = event.detail[1];
             if (item && !this.freeze && this.view.mode == "energy") {
                 var start = item.datapoint[0];
                 var end = start + 86400000;
@@ -220,7 +223,8 @@ class Graph {
             }
         }.bind(this));
 
-        plot.on("plotselected", function (event, ranges) {
+        plot[0].addEventListener("plotselected", this.plotHandlers.plotselected = function (event) {
+            var ranges = event.detail[0];
             $(".graph-tooltip").hide();
             this.item = null;
             
@@ -528,12 +532,12 @@ class PowerGraph extends Graph {
         var windowStatsOut = "";
         for (var key in windowStats) {
             windowStatsOut += "<tr>";
-            windowStatsOut += "<td style='text-align:left'>"+key+"</td>";
-            windowStatsOut += "<td style='text-align:center'>"+windowStats[key].minval.toFixed(2)+"</td>";
-            windowStatsOut += "<td style='text-align:center'>"+windowStats[key].maxval.toFixed(2)+"</td>";
-            windowStatsOut += "<td style='text-align:center'>"+windowStats[key].diff.toFixed(2)+"</td>";
-            windowStatsOut += "<td style='text-align:center'>"+windowStats[key].mean.toFixed(2)+"</td>";
-            windowStatsOut += "<td style='text-align:center'>"+windowStats[key].stdev.toFixed(2)+"</td>";
+            windowStatsOut += "<td>"+key+"</td>";
+            windowStatsOut += "<td class='text-center'>"+windowStats[key].minval.toFixed(2)+"</td>";
+            windowStatsOut += "<td class='text-center'>"+windowStats[key].maxval.toFixed(2)+"</td>";
+            windowStatsOut += "<td class='text-center'>"+windowStats[key].diff.toFixed(2)+"</td>";
+            windowStatsOut += "<td class='text-center'>"+windowStats[key].mean.toFixed(2)+"</td>";
+            windowStatsOut += "<td class='text-center'>"+windowStats[key].stdev.toFixed(2)+"</td>";
             windowStatsOut += "</tr>";
         }
         $("#graph-stats").html(windowStatsOut);
@@ -562,23 +566,29 @@ class PowerGraph extends Graph {
         }
         
         var options = {
-            lines: {
-                fill: false
+            series: {
+                lines: {
+                    fill: false,
+                    lineWidth: 2
+                }
             },
             xaxis: {
                 mode: "time",
                 timezone: "browser", 
+                timeBase: "milliseconds",
+                autoScale: "none",
                 min: this.start,
                 max: this.end, 
                 font: {
                     size: this.view.flotFontSize,
-                    color: "#666"
+                    color: "#666",
+                    fill: "#666"
                 },
                 reserveSpace: false
             },
             yaxes: [
-                {font: {size: this.view.flotFontSize, color: "#666"}, reserveSpace: false},
-                {font: {size: this.view.flotFontSize, color: "#666"}, reserveSpace: false}
+                {font: {size: this.view.flotFontSize, color: "#666", fill: "#666"}, reserveSpace: false},
+                {font: {size: this.view.flotFontSize, color: "#666", fill: "#666"}, reserveSpace: false}
             ],
             grid: {
                 show: true, 
@@ -590,7 +600,7 @@ class PowerGraph extends Graph {
                 // axisMargin:0
                 margin: {top: 30}
             },
-            selection: {mode: "x"},
+            selection: {mode: "x", color: "#e8cfac", visualization: "fill"},
             legend: {
                 show: false,
 //                position: "NW",
@@ -598,7 +608,7 @@ class PowerGraph extends Graph {
             }
         }
         if (!$('.graph').is(":hidden")) {
-            this.plot = $.plot($('.graph'), series, options);        
+            this.plot = Flot.plot($('.graph')[0], series, options);        
             this.events();
 
             $(".graph-loader", this.view.container).hide();
@@ -636,11 +646,11 @@ class PowerGraph extends Graph {
             var mode = action.html();
             if (mode.toLowerCase().indexOf('show') !== -1) {
                 $(".graph-stats", this.view.container).slideDown(350);
-                action.html("HIDE DETAIL");
+                action.html("Hide detail");
             }
             else {
                 $(".graph-stats", this.view.container).slideUp(350);
-                action.html("SHOW DETAIL");
+                action.html("Show detail");
             }
         }.bind(this));
     }
@@ -785,16 +795,17 @@ class EnergyGraph extends Graph {
             xaxis: {
                 mode: "time", 
                 timezone: "browser", 
-                font: {size: this.view.flotFontSize, color: "#666"}, 
+                timeBase: "milliseconds",
+                font: {size: this.view.flotFontSize, color: "#666", fill: "#666"}, 
                 // labelHeight: -5
                 reserveSpace: false
             },
             yaxis: {
-                font: {size: this.view.flotFontSize, color: "#666"}, 
+                font: {size: this.view.flotFontSize, color: "#666", fill: "#666"}, 
                 // labelWidth: -5
                 reserveSpace: false
             },
-            selection: { mode: "x" },
+            selection: { mode: "x", color: "#e8cfac", visualization: "fill" },
             legend: {
                 show: false
             },
@@ -806,7 +817,7 @@ class EnergyGraph extends Graph {
                 clickable: true
             }
         }
-        this.plot = $.plot($('.graph', this.view.container), series, options);
+        this.plot = Flot.plot($('.graph', this.view.container)[0], series, options);
         this.events();
 
         $(".graph-loader", this.view.container).hide();
@@ -856,17 +867,17 @@ class EnergyGraph extends Graph {
         var series = [];
         series.push({
             label:"Export", data: exportSeries, color: "#ffbe14", //highlightColor: '#ffcb47',
-            bars: { show: true, align: "center", barWidth: 0.75*3600*24*1000, fill: 1.0, lineWidth: 0},
+            bars: { show: true, align: "center", barWidth: [0.75*3600*24*1000, true], fill: 1.0, lineWidth: 0},
             stack: 0
         });
         series.push({
             label:"Self-consumption", data: selfConsSeries, color: "#a1b97b", //highlightColor: '#b9cb9c',
-            bars: { show: true, align: "center", barWidth: 0.75*3600*24*1000, fill: 1.0, lineWidth: 0},
+            bars: { show: true, align: "center", barWidth: [0.75*3600*24*1000, true], fill: 1.0, lineWidth: 0},
             stack: 1
         });
         series.push({
             label:"Consumption", data: importSeries, color: "#44b3e2", //highlightColor: '#5cbce6',
-            bars: { show: true, align: "center", barWidth: 0.75*3600*24*1000, fill: 1.0, lineWidth: 0},
+            bars: { show: true, align: "center", barWidth: [0.75*3600*24*1000, true], fill: 1.0, lineWidth: 0},
             stack: 1
         });
         var consumptionWindow = importWindow + selfConsWindow;
@@ -957,17 +968,17 @@ class EnergyGraph extends Graph {
         var series = [];
         series.push({
             label:"Export", data: exportCost, color: "#a1b97b",
-            bars: { show: true, align: "center", barWidth: 0.75*3600*24*1000, fill: 1.0, lineWidth: 0},
+            bars: { show: true, align: "center", barWidth: [0.75*3600*24*1000, true], fill: 1.0, lineWidth: 0},
             stack: 0
         });
         series.push({
             label:"Import", data: importCost, color: "#dd7777",
-            bars: { show: true, align: "center", barWidth: 0.75*3600*24*1000, fill: 1.0, lineWidth: 0},
+            bars: { show: true, align: "center", barWidth: [0.75*3600*24*1000, true], fill: 1.0, lineWidth: 0},
             stack: 1
         });
         series.push({
             label:"Consumption", data: savings, color: "#ddd",
-            bars: { show: true, align: "center", barWidth: 0.75*3600*24*1000, fill: 1.0, lineWidth: 0},
+            bars: { show: true, align: "center", barWidth: [0.75*3600*24*1000, true], fill: 1.0, lineWidth: 0},
             stack: 1
         });
         

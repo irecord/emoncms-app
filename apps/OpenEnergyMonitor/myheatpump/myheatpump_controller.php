@@ -37,8 +37,7 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
     if ($route->action == "view" || $route->action == "") {
         $route->format = "html";
         $result = "\n<!-- global app css and js -->";
-        $result .= "\n" . '<link href="' . $path . 'Modules/app/Views/css/app.css?v=' . $v . '" rel="stylesheet">';
-        $result .= "\n" . '<script src="' . $path . 'Modules/app/Views/js/app.js?v=' . $v . '"></script>';
+        $result .= "\n" . '<script src="' . $path . 'Modules/app/Views/js/app.js?v=' . filemtime("Modules/app/Views/js/app.js") . '"></script>';
         $result .= "\n\n <!-- app specific view -->\n";
 
         $dir = $appconfig->get_app_dir($app->app);
@@ -60,8 +59,19 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
         
         if (isset($app->config)) {
         
+            // start_date
             if (isset($app->config->start_date)) {
                 $result["start_date"] = (int) $app->config->start_date;
+            }
+
+            // auto_detect_cooling
+            if (isset($app->config->auto_detect_cooling)) {
+                $result["auto_detect_cooling"] = (int) $app->config->auto_detect_cooling;
+            }
+
+            // starting_power
+            if (isset($app->config->starting_power)) {
+                $result["starting_power"] = (int) $app->config->starting_power;
             }
         
             $feeds = array(
@@ -76,9 +86,14 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
                 "heatpump_outsideT",
                 "heatpump_dhw",
                 "heatpump_ch",
+                "heatpump_cooling",
+                "heatpump_error",
+                "immersion_elec",
                 "heatpump_targetT",
                 "heatpump_dhwT",
                 "heatpump_dhwTargetT",
+                "heatpump_dhwT_unit",
+                "boiler_heat"
             );
 
             require_once "Modules/feed/feed_model.php";

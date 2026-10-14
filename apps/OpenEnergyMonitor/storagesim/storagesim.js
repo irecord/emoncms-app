@@ -17,13 +17,6 @@ config.app = {
         "type": "feed",
         "autoname": "solar",
         "optional": true
-    },
-    "public": {
-        "type": "checkbox",
-        "name": "Public",
-        "default": 0,
-        "optional": true,
-        "description": "Make app public"
     }
 };
 
@@ -34,7 +27,6 @@ config.initapp = function() {
 };
 config.showapp = function() {
     $(".ajax-loader").hide();
-    $("body").css('background-color','#fff');
     load();
 };
 config.hideapp = function() {
@@ -46,13 +38,19 @@ config.hideapp = function() {
 var series = [];
 var feed_data = {};
 var options = {
+    legend: { show: false },
+    // Flot 5 needs every axis a series uses: SOC on 2, peak shaving balance on 3
+    yaxes: [{}, { position: "right" }, { position: "right" }],
     xaxis: {
         mode: "time",
-        timezone: "browser"
+        timezone: "browser",
+        timeBase: "milliseconds",
+        autoScale: "none"
     },
     selection: { 
         mode: "x", 
-        color:"#000" 
+        color:"#888",
+        visualization: "fill"
     },
     grid: {
         hoverable: true,
@@ -85,9 +83,8 @@ view.start = time_now - 365*24*3600000;
 view.limit_x = false;
 
 // Vue app
-var app = new Vue({
-    el: '#app',
-    data: {
+var app = Vue.createApp({
+    data() { return {
         generation: {
             wind: {
                 name: "UK Wind (normalised)",
@@ -121,7 +118,8 @@ var app = new Vue({
         },
         consumption: {
             kwh: 0,
-            efuel_demand: 0
+            efuel_demand: 0,
+            example: false
         },
         balance: {
             before_store1: 0,
@@ -161,7 +159,7 @@ var app = new Vue({
         auto_optimise: false,
         show_peak_shaving_balance: false,
         max_peak_shaving_deficit: 0
-    },
+    }; },
     methods: {
         update: function() {
             model();
@@ -171,15 +169,13 @@ var app = new Vue({
             model();
             this.auto_optimise = false;
             model();
+        },
+        // Dash for a ratio with nothing to divide by, such as a source with no capacity
+        toFixed: function(value, dp) {
+            return isFinite(value) ? value.toFixed(dp) : "--";
         }
-    },
-    filters: {
-        toFixed: function (value,dp) {
-            // if (!value) return ''
-            return value.toFixed(dp)
-        }   
     }
-});
+}).mount('#app');
 
 config.init();
 
@@ -196,6 +192,11 @@ function load(){
     } else {
         feed_data["home_solar"] = undefined;
     }
+
+    // No data for the window: use the example consumption, and no home solar
+    if (!feed_data["consumption"] || !feed_data["consumption"].length) feed_data["consumption"] = undefined;
+    if (!feed_data["home_solar"] || !feed_data["home_solar"].length) feed_data["home_solar"] = undefined;
+    app.consumption.example = feed_data["consumption"] == undefined;
 
     // Specify generation feeds
     var ids = [];
@@ -237,10 +238,10 @@ function model(){
     series.push({label: "Nuclear", data: [], color: "#DDA0DD", lines: { show: true, fill: true, lineWidth: 1 }});
     series.push({label: "Store2 Discharge", data: [], color: "#888", stack: true, lines: { show: true, fill: true, lineWidth: 0 }});
     series.push({label: "Consumption", data: [], color: "#666", lines: { show: true, fill: true, lineWidth: 1 }});
-    series.push({label: "Store1 SOC", data: [], color: "#000", yaxis: 2, lines: { show: true, fill: false, lineWidth: 1 }});
-    series.push({label: "Store2 SOC", data: [], color: "#0000ff", yaxis: 2, lines: { show: true, fill: false, lineWidth: 1 }});
+    series.push({label: "Store1 SOC", data: [], color: "#ddd", yaxis: 2, lines: { show: true, fill: false, lineWidth: 1 }});
+    series.push({label: "Store2 SOC", data: [], color: "#44b3e2", yaxis: 2, lines: { show: true, fill: false, lineWidth: 1 }});
     if (app.show_peak_shaving_balance) {
-        series.push({label: "Peak Shaving Balance", data: [], color: "#000", yaxis: 3, lines: { show: true, fill: false, lineWidth: 1 }});
+        series.push({label: "Peak Shaving Balance", data: [], color: "#ddd", yaxis: 3, lines: { show: true, fill: false, lineWidth: 1 }});
     }
     let power_to_kwh = interval / 3600;
 
@@ -299,7 +300,7 @@ function model(){
 
     app.max_peak_shaving_deficit = 0
 
-    if (feed_data['consumption']==undefined) {
+    if (!feed_data['consumption'] || !feed_data['consumption'].length) {
         return false;
     }
 
@@ -537,10 +538,15 @@ function model(){
 function draw() {
     options.xaxis.min = view.start;
     options.xaxis.max = view.end;
-    var plot = $.plot($("#graph"), series, options);
+    var plot = Flot.plot(document.getElementById("graph"), series, options);
+    chart_legend(series);
+    timebar_update(false);
+    // Fixed dataset, so no Now button
+    $("#time-now").hide();
 }
 
-$('#graph').bind("plotselected", function (event, ranges) {
+document.getElementById('graph').addEventListener("plotselected", function (event) {
+    var ranges = event.detail[0];
     view.start = ranges.xaxis.from;
     view.end = ranges.xaxis.to;
     draw();
@@ -550,4 +556,12 @@ $("#zoomout").click(function () {view.zoomout(); draw();});
 $("#zoomin").click(function () {view.zoomin(); draw();});
 $('#right').click(function () {view.panright(); draw();});
 $('#left').click(function () {view.panleft(); draw();});
-$('.time').click(function () {view.timewindow($(this).attr("time")); draw();});
+$('#time-select').change(function () {
+    var hours = parseFloat($(this).val());
+    if (!hours) return;
+    view.timewindow(hours/24.0);
+    draw();
+});
+
+// Start and End fields from Lib/vis.helper.js
+timebar_manual(draw);

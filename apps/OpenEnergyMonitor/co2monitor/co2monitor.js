@@ -44,15 +44,19 @@ config.hideapp = function () {
 // Graph variables
 
 var options = {
-    canvas: true,
-    lines: {
-        show: true,
-        lineWidth: 2
+    series: {
+        lines: {
+            show: true,
+            lineWidth: 2
+        }
     },
     xaxis: {
         mode: "time",
-        timezone: "browser"
+        timezone: "browser",
+        timeBase: "milliseconds",
+        autoScale: "none"
     },
+    yaxes: [{}, { position: "right" }],     // wind speed on axis 2
     grid: {
         show: true,
         color: "#aaa",
@@ -64,7 +68,8 @@ var options = {
     },
     selection: { 
         mode: "x",
-        color: "#555"
+        color: "#555",
+        visualization: "fill"
     }
 };
 
@@ -278,11 +283,11 @@ function calculate_volume_based_air_change_rate() {
     }
     total_mean = total_mean / total_volume;
     $("#total_volume").html(total_volume);
-    $("#total_mean_co2").html(total_mean.toFixed(0));
+    $("#total_mean_co2").html(isFinite(total_mean) ? total_mean.toFixed(0) : "-");
 
     var co2_litres_per_day = $("#daily_co2_addition").val();
     var mean_air_change_rate = (co2_litres_per_day / 24) / (1000 * total_volume * (0.000001 * (total_mean - 420)));
-    $("#total_mean_air_change_rate").html(mean_air_change_rate.toFixed(2));
+    $("#total_mean_air_change_rate").html(isFinite(mean_air_change_rate) ? mean_air_change_rate.toFixed(2) : "-");
 }
 
 function draw() {
@@ -303,12 +308,9 @@ function draw() {
         if (isNaN(feeds_to_load[z].fit.R2)==false) {
             R2 = feeds_to_load[z].fit.R2.toFixed(5);
         }
-        let highlight = "#fff";
-        if (!feeds_to_load[z].show) highlight = "#666";
-
-        sensors_list += "<tr style='color:"+highlight+"'>";
-        sensors_list += "<td><div class='box' style='background-color:"+colours[z]+"; cursor:pointer' z='"+z+"'></div></td>";
-        sensors_list += "<td>"+config.feedsbyid[feeds_to_load[z].value].tag + ": "+config.feedsbyid[feeds_to_load[z].value].name+"</td>";
+        sensors_list += "<tr class='" + (feeds_to_load[z].show ? "" : "co2-off") + "'>";
+        sensors_list += "<td><span class='app-swatch co2-swatch' style='background-color:"+colours[z]+"' z='"+z+"'></span></td>";
+        sensors_list += "<td class='col-primary'>"+config.feedsbyid[feeds_to_load[z].value].tag + ": "+config.feedsbyid[feeds_to_load[z].value].name+"</td>";
         if (mode=="average") {
             sensors_list += "<td>"+feeds_to_load[z].volume+" m3</td>";
             sensors_list += "<td>"+feeds_to_load[z].params.mean.toFixed(0)+" ppm</td>";
@@ -317,7 +319,7 @@ function draw() {
             sensors_list += "<td>"+air_change_rate+"</td>";
             sensors_list += "<td>"+R2+"</td>";
             // refine button
-            sensors_list += "<td><button class='btn btn-primary' onclick='refine("+z+")'>Refine</button></td>";
+            sensors_list += "<td><button class='btn btn-outline-primary btn-sm' onclick='refine("+z+")'>Refine</button></td>";
         }
 
         sensors_list += "</tr>";
@@ -361,13 +363,15 @@ function draw() {
         });    
     }
 
-    $.plot($('#graph'), series, options);
+    Flot.plot(document.getElementById('graph'), series, options);
+    timebar_update(false);
 }
 
 function updater() {
     var use = config.app.feedA.value;
     var feeds = feed.listbyid();
     $("#powernow").html((feeds[use].value * 1).toFixed(0));
+    live_status_update(feeds[use].time);
 }
 
 function resize() {
@@ -386,13 +390,18 @@ $("#zoomin").click(function () { view.zoomin(); load(); });
 $('#right').click(function () { view.panright(); load(); });
 $('#left').click(function () { view.panleft(); load(); });
 
-$('.time').click(function () {
-    view.timewindow($(this).attr("time") / 24.0);
+$('#time-select').change(function () {
+    var hours = parseFloat($(this).val());
+    if (!hours) return;
+    view.timewindow(hours / 24.0);
     load();
 });
+timebar_manual(load);
+timebar_now(load);
 
 // Tooltip code
-$('#graph').bind("plothover", function (event, pos, item) {
+document.getElementById('graph').addEventListener("plothover", function (event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item) {
         var i = item.dataIndex;
 
@@ -413,7 +422,8 @@ $('#graph').bind("plothover", function (event, pos, item) {
     } else $("#tooltip").remove();
 });
 
-$('#graph').bind("plotselected", function (event, ranges) {
+document.getElementById('graph').addEventListener("plotselected", function (event) {
+    var ranges = event.detail[0];
     view.start = ranges.xaxis.from;
     view.end = ranges.xaxis.to;
     load();
@@ -431,9 +441,8 @@ $("#decay_mode").click(function() {
     mode = "decay";
     $(".decay").show();
     $(".average").hide();
-    $("#decay_mode").removeClass("btn-primary");
-    $("#average_mode").removeClass("btn-primary");
-    $("#decay_mode").addClass("btn-primary");
+    $("#decay_mode, #average_mode").removeClass("active");
+    $("#decay_mode").addClass("active");
     draw();
 });
 
@@ -441,13 +450,12 @@ $("#average_mode").click(function() {
     mode = "average";
     $(".decay").hide();
     $(".average").show();
-    $("#decay_mode").removeClass("btn-primary");
-    $("#average_mode").removeClass("btn-primary");
-    $("#average_mode").addClass("btn-primary");
+    $("#decay_mode, #average_mode").removeClass("active");
+    $("#average_mode").addClass("active");
     draw();
 });
 
-$("#sensors_list").on("click",".box",function() {
+$("#sensors_list").on("click",".co2-swatch",function() {
     let z = 1 * $(this).attr("z");
     feeds_to_load[z].show = !feeds_to_load[z].show;
     draw();

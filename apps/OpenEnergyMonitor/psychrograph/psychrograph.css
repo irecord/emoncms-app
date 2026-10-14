@@ -1,0 +1,15 @@
+/* Psychrograph. Shared components are in Modules/app/Views/css/app-kit.css. */
+
+/* Chart containers */
+#contextgraph_bound { width: 100%; }
+#contextgraph { width: 100%; height: 135px; }
+
+#psychrograph_bound,
+#givonigraph_bound { width: 100%; }
+
+#psychrograph,
+#givonigraph {
+    width: 100%;
+    height: calc(100vh - 31rem);
+    min-height: 320px;
+}

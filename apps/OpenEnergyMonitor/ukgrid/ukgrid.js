@@ -2,11 +2,15 @@
 var options = {
   xaxis: {
       mode: "time", 
-      timezone: "browser"
+      timezone: "browser",
+      timeBase: "milliseconds",
+      autoScale: "none"
   },
+  yaxes: [{}, { position: "right" }],     // carbon intensity on axis 2
   selection: { 
       mode: "x", 
-      color:"#000" 
+      color:"#000",
+      visualization: "fill"
   },
   legend: {
       show:false
@@ -37,8 +41,9 @@ var mode = "forecast";
 init_series();
 
 function init_series() {
+    // Range select counts back from now, so it is hidden for the forecast
+    $("#time-select").toggle(mode!="forecast");
     if (mode=="forecast") {
-        $('.time').hide();
         series = [
             {label:"WIND", feedid:477240, color:"rgba(0,255,0,0.6)"},
             {label:"WIND EMBEDDED", feedid:477234, color:"rgba(0,200,0,0.6)"},
@@ -49,10 +54,6 @@ function init_series() {
         view.end = view.start + (86400*1000*7);
     
     } else {
-        $('.time').show();
-        $('.time[time=1]').hide();
-        $('.time[time=3]').hide();
-        $('.time[time=6]').hide();
         series = [
             {label:"NUCLEAR", feedid:97697, color:"rgba(227,225,36,0.6)"},
             {label:"BIOMASS", feedid:382965, color:"#735d34"},
@@ -104,11 +105,10 @@ function init_series() {
             series[z].lines = {show:true, fill:0.6, lineWidth:0};
         }
     
-        var star = "";
-        var show = 0;
-        if (series[z].show) {star = "&nbsp;*&nbsp;"; show = 1;}
-        out += '<div style="display:inline-block; width:180px"><div class="legendcheckbox" index="'+z+'" show='+show+' style="float:left; background-color:'+series[z].color+'; cursor:pointer">';
-        out += '<div class="legendItem">'+star+'</div></div>'+series[z].label+'</div>';
+        var show = series[z].show ? 1 : 0;
+        var mark = series[z].fill===false ? "app-legend-line" : "app-legend-swatch";
+        out += '<button class="app-legend-item uk-series' + (show ? '' : ' is-off') + '" index="' + z + '" show="' + show + '">';
+        out += '<span class="' + mark + '" style="background-color:' + series[z].color + '"></span>' + series[z].label + '</button>';
     }
     $("#visible-checkboxes").html(out);
     load();
@@ -198,7 +198,10 @@ function draw() {
     }
     options.xaxis.min = view.start;
     options.xaxis.max = view.end;  
-    $.plot("#placeholder",data, options);
+    Flot.plot(document.getElementById("placeholder"),data, options);
+    timebar_update(false);
+    // Window end is rounded down to the interval, so Now shows only when further back
+    if (Date.now() - view.end < intervalms + 300000) $("#time-now").hide();
 }
 
 function resize(){
@@ -225,24 +228,17 @@ $(".forecast").click(function() {
     $("#fuel-mix-info").hide();
 });
 
-$("#visible-checkboxes").on("click",".legendcheckbox",function() {
+$("#visible-checkboxes").on("click",".uk-series",function() {
     var index = $(this).attr("index");
-    var show = $(this).attr("show");
-    
-    if (show==0) {
-        show = 1; 
-        $(this).find(".legendItem").html("&nbsp;*&nbsp;");
-    } else { 
-        show=0;
-        $(this).find(".legendItem").html("");
-    }
-    $(this).attr("show",show);
+    var show = $(this).attr("show") == 0 ? 1 : 0;
+    $(this).attr("show",show).toggleClass("is-off", !show);
     
     series[index].show = show;
     draw();
 });
 
-$('#placeholder').bind("plotselected", function (event, ranges) {
+document.getElementById('placeholder').addEventListener("plotselected", function (event) {
+    var ranges = event.detail[0];
     view.start = ranges.xaxis.from;
     view.end = ranges.xaxis.to;
     load();
@@ -252,10 +248,18 @@ $("#zoomout").click(function () {view.zoomout(); load();});
 $("#zoomin").click(function () {view.zoomin(); load();});
 $('#right').click(function () {view.panright(); load();});
 $('#left').click(function () {view.panleft(); load();});
-$('.time').click(function () {view.timewindow($(this).attr("time")/24.0); load();});
+$('#time-select').change(function () {
+    var hours = parseFloat($(this).val());
+    if (!hours) return;
+    view.timewindow(hours/24.0);
+    load();
+});
+timebar_manual(load);
+timebar_now(load);
 
 
-$('#placeholder').bind("plothover", function (event, pos, item) {
+document.getElementById('placeholder').addEventListener("plothover", function (event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item) {
         var i = item.dataIndex;
         

@@ -1,0 +1,48 @@
+/* App config panel. Page, cards, rows and labels are the reference page
+   components in Theme/css/bootstrap5-theme.css. Page background and footer
+   come from body.app-config-open in the same file. */
+
+.cfg-progress { flex: 1; max-width: 260px; --bs-progress-height: 6px; }
+
+.cfg-about { line-height: 21px; color: var(--bs-secondary-color); }
+.cfg-about b, .cfg-about strong { color: var(--bs-body-color); }
+.cfg-about .lead { margin-bottom: 20px; font-size: 21px; font-weight: 200; line-height: 30px; }
+.cfg-about.is-clamped {
+    max-height: 128px; overflow: hidden;
+    -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent);
+}
+
+/* Rows, two columns on wide screens. An open row spans both. */
+.cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 10px; }
+.cfg-grid > .open { grid-column: 1 / -1; }
+.cfg-text { flex: 1; min-width: 0; }
+.cfg-key { font-weight: bold; color: var(--bs-emphasis-color); overflow-wrap: anywhere; }
+.cfg-desc { font-size: 13px; line-height: 18px; color: var(--bs-secondary-color); }
+.cfg-value { font-size: 13px; text-align: right; }
+.cfg-node { color: var(--bs-secondary-color); }
+.cfg-node .badge { margin-left: 6px; }
+.cfg-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 18px; }
+.cfg-form .form-select { width: auto; min-width: 260px; }
+.cfg-ctrl { flex-shrink: 0; }
+.cfg-ctrl .form-control { width: 170px; }
+.cfg-ctrl .form-select { max-width: 240px; }
+
+/* Derived feed: purple badge, no Bootstrap colour for it */
+.cfg-derive { color: #c9a0f0; background-color: rgba(160, 100, 220, 0.18); }
+
+/* Button that shows the unused optional feeds */
+.cfg-more {
+    display: block; width: 100%; margin-top: 10px; padding: 10px;
+    border: 1px dashed var(--bs-border-color); border-radius: 10px; background: none; color: var(--bs-secondary-color);
+}
+.cfg-more .font-monospace { font-size: 12px; }
+.cfg-more:hover { color: var(--bs-emphasis-color); border-color: var(--bs-secondary-color); }
+
+.cfg-table { margin: 0; }
+.cfg-table > :not(caption) > * > * { padding: 7px 16px; font-size: 13px; }
+
+@media (max-width: 575px) {
+    .cfg-grid { grid-template-columns: 1fr; }
+    .cfg-value { width: 100%; padding-left: 40px; text-align: left; }
+    .cfg-progress { display: none; }
+}

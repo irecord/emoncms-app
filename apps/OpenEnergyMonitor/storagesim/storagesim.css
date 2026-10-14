@@ -1,0 +1,19 @@
+/* Storage Simulator. Shared components are in Modules/app/Views/css/app-kit.css. */
+
+#graph {
+    width: 100%;
+    height: 500px;
+}
+
+
+/* Generation above, the two stores side by side on wide screens */
+.sim-grid {
+    display: grid;
+    gap: 0 10px;
+}
+.sim-grid > .app-card { margin-top: 0; }
+@media (min-width: 768px) {
+    .sim-grid { grid-template-columns: 1fr 1fr; }
+    .sim-grid > .app-card:first-child { grid-column: 1 / -1; }
+}
+.sim-grid td:last-child { white-space: nowrap; }

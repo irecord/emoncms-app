@@ -15,7 +15,7 @@ if (!session_write) $(".config-open").hide();
 // Configuration
 // ----------------------------------------------------------------------
 config.app = {
-    "app_name": { "type": "value", "name": "App name", "default": "MY BOILER", "optional": true, "description": "Enter custom name for app" },
+    "app_name": { "type": "value", "name": "App name", "default": "My Boiler", "optional": true, "description": "Enter custom name for app" },
     "boiler_fuel_kwh": { "type": "feed", "autoname": "boiler_fuel_kwh", "description": "Cumulative fuel use kWh" },    
     "boiler_elec": { "type": "feed", "autoname": "boiler_elec", "optional": true, "description": "Electric use in watts" },
     "boiler_elec_kwh": { "type": "feed", "autoname": "boiler_elec_kwh", "optional": true, "description": "Cumulative electric use kWh" },
@@ -43,6 +43,11 @@ config.hideapp = function () { clear() };
 var meta = {};
 var data = {};
 var bargraph_series = [];
+var bargraph_start = 0;
+var bargraph_end = 0;
+var last_bargraph_start = 0;
+var last_bargraph_end = 0;
+var bargraph_alltime = false;
 var powergraph_series = [];
 var previousPoint = false;
 var viewmode = "bargraph";
@@ -87,9 +92,10 @@ function init() {
 }
 
 function show() {
-    $("#app_name").html(config.app['app_name'].value);
+    // Saved configs may hold the old upper case default
+    var app_name = config.app['app_name'].value;
+    $("#app_name").text(app_name == "MY BOILER" ? "My Boiler" : app_name);
 
-    $("body").css('background-color', 'WhiteSmoke');
     // -------------------------------------------------------------------------------
     // Configurations
     // -------------------------------------------------------------------------------
@@ -137,10 +143,10 @@ function show() {
     if (config_start_date > alltime_start_time) {
         alltime_start_time = config_start_date;
         var d = new Date(alltime_start_time * 1000);
-        $("#all_time_history_title").html("TOTAL SINCE: " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear());
+        $("#all_time_history_title").html("Total since " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear());
     } else {
         var d = new Date(start_time * 1000);
-        $("#all_time_history_title").html("TOTAL SINCE: " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear());
+        $("#all_time_history_title").html("Total since " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear());
     }
 
     // Load elec start here after start_time may have been modified by heat start time
@@ -164,19 +170,9 @@ function show() {
 
     end = end_time * 1000;
 
-    if (now - end > HOUR) {
-        $("#last_updated").show();
-        $("#live_table").hide();
-        date.setTime(end);
-        let h = date.getHours();
-        let m = date.getMinutes();
-        if (h < 10) h = "0" + h;
-        if (m < 10) m = "0" + m;
-        $("#last_updated").html("Last updated: " + date.toDateString() + " " + h + ":" + m)
-    } else {
-        $("#last_updated").hide();
-        $("#live_table").show();
-    }
+    // Live values only when the data is recent. The header status gives its age.
+    live_status_update(end_time);
+    $("#live_table").toggle(now - end <= HOUR);
 
     if (urlParams.mode != undefined) {
         if (urlParams.mode == "power") {
@@ -204,9 +200,7 @@ function show() {
         view.start = start;
         view.end = end;
         viewmode = "powergraph";
-        $(".bargraph-navigation").hide();
         powergraph_load();
-        $(".powergraph-navigation").show();
         $("#advanced-toggle").show();
     } else {
         var timeWindow = 30 * DAY;
@@ -244,6 +238,10 @@ function updater() {
         if (feeds["boiler_heat"] != undefined) $("#boiler_heat").html(Math.round(feeds["boiler_heat"].value));
         if (feeds["boiler_flowT"] != undefined) $("#boiler_flowT").html((1 * feeds["boiler_flowT"].value).toFixed(1));
         if (feeds["boiler_roomT"] != undefined) $("#boiler_roomT").html((1 * feeds["boiler_roomT"].value).toFixed(1));
+
+        // Header status from the latest heat, fuel or electric value
+        var latest = feeds["boiler_heat"] || feeds["boiler_fuel_kwh"] || feeds["boiler_elec"];
+        if (latest != undefined) live_status_update(latest.time);
 
         // Update all-time values
         var total_fuel = 0;
@@ -330,31 +328,97 @@ function get_average(name, duration) {
 // -------------------------------------------------------------------------------
 // EVENTS
 // -------------------------------------------------------------------------------
-// The buttons for these powergraph events are hidden when in historic mode 
-// The events are loaded at the start here and dont need to be unbinded and binded again.
-$("#zoomout").click(function () { view.zoomout(); powergraph_load(); });
-$("#zoomin").click(function () { view.zoomin(); powergraph_load(); });
-$('#right').click(function () { view.panright(); powergraph_load(); });
-$('#left').click(function () { view.panleft(); powergraph_load(); });
 
-$('.time').click(function () {
-    view.timewindow($(this).attr("time") / 24.0);
-    powergraph_load();
+// Time bar after a redraw. Daily bars use their own window; the power view
+// stops at a month and has no all time range.
+function boiler_timebar_sync() {
+    var daily = viewmode == "bargraph";
+    if (daily) {
+        view.start = bargraph_start;
+        view.end = bargraph_end;
+    }
+    timebar_hide("option[value=all], option[value=2160], option[value=8760]", !daily);
+    timebar_update(daily);
+    if (daily && bargraph_alltime) $("#time-select").val("all");
+    $(".viewhistory").toggleClass("active", daily);
+    $(".viewpower").toggleClass("active", !daily);
+}
+
+// Range select: days of bars, or hours of power data
+$("#time-select").change(function () {
+    var value = $(this).val();
+    if (!value) return;
+    if (viewmode == "bargraph") {
+        var end = (new Date()).getTime();
+        var start = value == "all" ? start_time * 1000 : end - value * HOUR;
+        if (start < start_time * 1000) start = start_time * 1000;
+        bargraph_alltime = value == "all";
+        bargraph_load(start, end);
+        bargraph_draw();
+    } else {
+        view.timewindow(value / 24.0);
+        powergraph_load();
+    }
 });
 
+// Zoom and pan act on the daily bars or the power graph
+function boiler_navigate(move) {
+    if (viewmode == "bargraph") {
+        view.start = bargraph_start;
+        view.end = bargraph_end;
+        move();
+        bargraph_alltime = false;
+        bargraph_load(view.start, view.end);
+        bargraph_draw();
+    } else {
+        move();
+        powergraph_load();
+    }
+}
+$("#zoomout").click(function () { boiler_navigate(function () { view.zoomout(); }); });
+$("#zoomin").click(function () { boiler_navigate(function () { view.zoomin(); }); });
+$("#right").click(function () { boiler_navigate(function () { view.panright(); }); });
+$("#left").click(function () { boiler_navigate(function () { view.panleft(); }); });
+
+// Start and End fields, and Now for the power view, from Lib/vis.helper.js
+timebar_manual(function () { boiler_navigate(function () {}); });
+timebar_now(function () { powergraph_load(); });
+
+// Switch to daily bars, back to the last daily window if there was one
 $(".viewhistory").click(function () {
-    $(".powergraph-navigation").hide();
+    if (viewmode == "bargraph") return;
     var timeWindow = 30 * DAY;
-    // var end = (new Date()).getTime();
     var end = end_time * 1000;
     var start = end - timeWindow;
     if (start < (start_time * 1000)) start = start_time * 1000;
+
+    if (last_bargraph_start && last_bargraph_end) {
+        start = last_bargraph_start;
+        end = last_bargraph_end;
+    }
+
     viewmode = "bargraph";
     bargraph_load(start, end);
     bargraph_draw();
-    $(".bargraph-navigation").show();
     $("#advanced-toggle").hide();
     $("#advanced-block").hide();
+});
+
+// Switch to the power graph, last 24 hours
+$(".viewpower").click(function () {
+    if (viewmode == "powergraph") return;
+    last_bargraph_start = bargraph_start;
+    last_bargraph_end = bargraph_end;
+    view.timewindow(1.0);
+    viewmode = "powergraph";
+    powergraph_load();
+
+    $("#advanced-toggle").show();
+    if ($("#advanced-toggle").html() == "SHOW DETAIL") {
+        $("#advanced-block").hide();
+    } else {
+        $("#advanced-block").show();
+    }
 });
 
 $("#advanced-toggle").click(function () {
@@ -370,7 +434,8 @@ $("#advanced-toggle").click(function () {
     }
 });
 
-$('#placeholder').bind("plothover", function (event, pos, item) {
+document.getElementById('placeholder').addEventListener("plothover", function (event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item) {
         var z = item.dataIndex;
 
@@ -454,15 +519,17 @@ $('#placeholder').bind("plothover", function (event, pos, item) {
 });
 
 // Auto click through to power graph
-$('#placeholder').bind("plotclick", function (event, pos, item) {
+document.getElementById('placeholder').addEventListener("plotclick", function (event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item && !panning && viewmode == "bargraph") {
+        last_bargraph_start = bargraph_start;
+        last_bargraph_end = bargraph_end;
+
         var z = item.dataIndex;
         view.start = data["boiler_heat_kwhd"][z][0];
         view.end = view.start + DAY;
-        $(".bargraph-navigation").hide();
         viewmode = "powergraph";
         powergraph_load();
-        $(".powergraph-navigation").show();
         $("#advanced-toggle").show();
 
         if ($("#advanced-toggle").html() == "SHOW DETAIL") {
@@ -474,12 +541,14 @@ $('#placeholder').bind("plotclick", function (event, pos, item) {
     }
 });
 
-$('#placeholder').bind("plotselected", function (event, ranges) {
+document.getElementById('placeholder').addEventListener("plotselected", function (event) {
+    var ranges = event.detail[0];
     var start = ranges.xaxis.from;
     var end = ranges.xaxis.to;
     panning = true;
 
     if (viewmode == "bargraph") {
+        bargraph_alltime = false;
         bargraph_load(start, end);
         bargraph_draw();
     } else {
@@ -487,64 +556,6 @@ $('#placeholder').bind("plotselected", function (event, ranges) {
         powergraph_load();
     }
     setTimeout(function () { panning = false; }, 100);
-});
-
-$('.bargraph-alltime').click(function () {
-    var start = start_time * 1000;
-    var end = (new Date()).getTime();
-    bargraph_load(start, end);
-    bargraph_draw();
-});
-
-$('.bargraph-day').click(function () {
-    view.timewindow(1.0);
-    $(".bargraph-navigation").hide();
-    viewmode = "powergraph";
-    powergraph_load();
-    $(".powergraph-navigation").show();
-
-    $("#advanced-toggle").show();
-    if ($("#advanced-toggle").html() == "SHOW DETAIL") {
-        $("#advanced-block").hide();
-    } else {
-        $("#advanced-block").show();
-    }
-});
-
-$('.bargraph-week').click(function () {
-    var timeWindow = 7 * DAY;
-    var end = (new Date()).getTime();
-    var start = end - timeWindow;
-    if (start < (start_time * 1000)) start = start_time * 1000;
-    bargraph_load(start, end);
-    bargraph_draw();
-});
-
-$('.bargraph-month').click(function () {
-    var timeWindow = 30 * DAY;
-    var end = (new Date()).getTime();
-    var start = end - timeWindow;
-    if (start < (start_time * 1000)) start = start_time * 1000;
-    bargraph_load(start, end);
-    bargraph_draw();
-});
-
-$('.bargraph-quarter').click(function () {
-    var timeWindow = 91 * DAY;
-    var end = (new Date()).getTime();
-    var start = end - timeWindow;
-    if (start < (start_time * 1000)) start = start_time * 1000;
-    bargraph_load(start, end);
-    bargraph_draw();
-});
-
-$('.bargraph-year').click(function () {
-    var timeWindow = 365 * DAY;
-    var end = (new Date()).getTime();
-    var start = end - timeWindow;
-    if (start < (start_time * 1000)) start = start_time * 1000;
-    bargraph_load(start, end);
-    bargraph_draw();
 });
 
 $("#stats_when_running").click(function () {
@@ -589,17 +600,17 @@ function powergraph_load() {
 
     // Index order is important here!
     var feeds_to_load = {
-        "boiler_fuel_kwh": { label: "Fuel", yaxis: 3, color: 6 },
+        "boiler_fuel_kwh": { label: "Fuel", yaxis: 3, color: flot_color(6) },
         "boiler_dhw": { label: "DHW", yaxis: 4, color: "#88F", lines: { lineWidth: 0, show: true, fill: 0.15 } },
         "boiler_ch": { label: "CH", yaxis: 4, color: "#FB6", lines: { lineWidth: 0, show: true, fill: 0.15 } },
         "boiler_targetT": { label: "TargetT", yaxis: 2, color: "#ccc" },
-        "boiler_flowT": { label: "FlowT", yaxis: 2, color: 2 },
-        "boiler_returnT": { label: "ReturnT", yaxis: 2, color: 3 },
-        "boiler_outsideT": { label: "OutsideT", yaxis: 2, color: 4 },
+        "boiler_flowT": { label: "FlowT", yaxis: 2, color: flot_color(2) },
+        "boiler_returnT": { label: "ReturnT", yaxis: 2, color: flot_color(3) },
+        "boiler_outsideT": { label: "OutsideT", yaxis: 2, color: flot_color(4) },
         "boiler_roomT": { label: "RoomT", yaxis: 2, color: "#000" },
-        "boiler_flowrate": { label: "Flow rate", yaxis: 3, color: 6 },
-        "boiler_heat": { label: "Heat", yaxis: 1, color: 0, lines: { show: true, fill: 0.2, lineWidth: 0.5 } },
-        "boiler_elec": { label: "Electric", yaxis: 1, color: 1, lines: { show: true, fill: 0.3, lineWidth: 0.5 } }
+        "boiler_flowrate": { label: "Flow rate", yaxis: 3, color: flot_color(6) },
+        "boiler_heat": { label: "Heat", yaxis: 1, color: flot_color(0), lines: { show: true, fill: 0.2, lineWidth: 0.5 } },
+        "boiler_elec": { label: "Electric", yaxis: 1, color: flot_color(1), lines: { show: true, fill: 0.3, lineWidth: 0.5 } }
     }
 
     // Compile list of feedids
@@ -650,8 +661,6 @@ function powergraph_process() {
 
     // Load powergraph_series into flot
     powergraph_draw();
-    
-    $("#window-efficiency-bound").show();
 }
 
 
@@ -765,15 +774,15 @@ function process_stats() {
 
                 var minval_str = "";
                 if (stats[x][key].minval != null) minval_str = (1*stats[x][key].minval).toFixed(feed_options[key].dp) + " " + feed_options[key].unit;
-                out += "<td style='text-align:center; color:#777'>" + minval_str + "</td>";
+                out += "<td style='text-align:center; color:var(--bs-secondary-color)'>" + minval_str + "</td>";
 
                 var maxval_str = "";
                 if (stats[x][key].maxval != null) maxval_str = (1*stats[x][key].maxval).toFixed(feed_options[key].dp) + " " + feed_options[key].unit;
-                out += "<td style='text-align:center; color:#777'>" + maxval_str + "</td>";
+                out += "<td style='text-align:center; color:var(--bs-secondary-color)'>" + maxval_str + "</td>";
 
                 var diff_str = "";
                 if (stats[x][key].diff != null) diff_str = (1*stats[x][key].diff).toFixed(feed_options[key].dp) + " " + feed_options[key].unit;
-                out += "<td style='text-align:center; color:#777'>" + diff_str + "</td>";
+                out += "<td style='text-align:center; color:var(--bs-secondary-color)'>" + diff_str + "</td>";
 
                 out += "<td style='text-align:center'>" + (1*stats[x][key].mean).toFixed(feed_options[key].dp) + " " + feed_options[key].unit + "</td>";
 
@@ -832,7 +841,7 @@ function process_stats() {
         window_efficiency = window_efficiency.toFixed(1)+"%";
     }
     
-    $("#window-efficiency").html(window_efficiency);
+    $("#window-efficiency").html(window_efficiency).attr("title", "");
     
 
     return stats;
@@ -856,11 +865,10 @@ function stats_min_max(category, key, value) {
 
 $(".show_stats_category").click(function () {
     var key = $(this).attr("key");
-    var color = $(this).css("color");
     $(".stats_category").hide();
     $(".stats_category[key='" + key + "'").show();
-    $(".show_stats_category").css("border-bottom", "none");
-    $(this).css("border-bottom", "1px solid " + color);
+    $(".show_stats_category").removeClass("active");
+    $(this).addClass("active");
 });
 
 function emitter_and_volume_calculator() {
@@ -925,20 +933,21 @@ function emitter_and_volume_calculator() {
 function powergraph_draw() {
     set_url_view_params("power", view.start, view.end);
 
-    var style = { size: flot_font_size, color: "#666" }
+    var style = { size: flot_font_size, color: flot_font_color(), fill: flot_font_color() }
     var options = {
-        lines: { fill: false },
+        series: { lines: { fill: false, lineWidth: 2 } },
         xaxis: {
-            mode: "time", timezone: "browser",
+            mode: "time", timezone: "browser", timeBase: "milliseconds", autoScale: "none",
             min: view.start, max: view.end,
             font: style,
             reserveSpace: false
         },
         yaxes: [
-            { min: 0, font: style, reserveSpace: false },
-            { font: style, reserveSpace: false },
-            { font: { size: flot_font_size, color: "#44b3e2" }, reserveSpace: false },
-            { min: 0, max: 1, show: false, reserveSpace: false }
+            { min: 0, autoScale: "none", font: style, reserveSpace: false },
+            // Temperatures, and fuel kWh or flow rate, on the right
+            { font: style, position: "right", labelWidth: 36, tickFormatter: function (v, axis) { return v.toFixed(axis.tickDecimals) + "\u00b0"; } },
+            { font: { size: flot_font_size, color: flot_color(6), fill: flot_color(6) }, position: "right", labelWidth: 48 },
+            { min: 0, max: 1, autoScale: "none", show: false, reserveSpace: false }
         ],
         grid: {
             show: true,
@@ -950,8 +959,9 @@ function powergraph_draw() {
             // axisMargin:0
             margin: { top: 30 }
         },
-        selection: { mode: "x" },
-        legend: { position: "NW", noColumns: 13 }
+        selection: { mode: "x", color: "#e8cfac", visualization: "fill" },
+        // Placed in the top grid margin, above the plot, as flot 0.8 drew it
+        legend: { show: true, position: "nw", margin: [0, -30], noColumns: 13 }
     }
 
     if (show_negative_heat) {
@@ -968,19 +978,13 @@ function powergraph_draw() {
             
             if (show) powergraph_series_without_key.push(powergraph_series[key]);
         }
-        $.plot($('#placeholder'), powergraph_series_without_key, options);
+        var plot = Flot.plot(document.getElementById('placeholder'), powergraph_series_without_key, options);
+        plot_legend(plot, 0);
     }
 
-    // show symbol when live scrolling is active
-    var now = new Date().getTime();
-    if (view.end > now - 5 * MINUTE && view.end <= now + 5 * MINUTE && view.end - view.start <= 2 * DAY) {
-        $('#right').hide();
-        $('#live').show();
-    }
-    else {
-        $('#live').hide();
-        $('#right').show();
-    }
+    // Power view keeps its legend in the chart
+    $("#chart-legend").empty();
+    boiler_timebar_sync();
 }
 
 // -------------------------------------------------------------------------------
@@ -990,6 +994,9 @@ function bargraph_load(start, end) {
     var intervalms = DAY;
     end = Math.ceil(end / intervalms) * intervalms;
     start = Math.floor(start / intervalms) * intervalms;
+
+    bargraph_start = start;
+    bargraph_end = end;
 
     bargraph_series = [];
 
@@ -1004,8 +1011,8 @@ function bargraph_load(start, end) {
     if (fuel_enabled) {
         data["boiler_fuel_kwhd"] = feed.getdata(feeds["boiler_fuel_kwh"].id, start, end, "daily", 0, 1)
         bargraph_series.push({
-            data: data["boiler_fuel_kwhd"], color: 5,
-            bars: { show: true, align: "center", barWidth: 0.75 * DAY, fill: 0.5, lineWidth: 0 }
+            data: data["boiler_fuel_kwhd"], color: flot_color(5), label: "Fuel",
+            bars: { show: true, align: "center", barWidth: [0.75 * DAY, true], fill: 0.5, lineWidth: 0 }
         });
 
         for (var z in data["boiler_fuel_kwhd"]) {
@@ -1017,8 +1024,8 @@ function bargraph_load(start, end) {
     if (heat_enabled) {
         data["boiler_heat_kwhd"] = feed.getdata(feeds["boiler_heat_kwh"].id, start, end, "daily", 0, 1)
         bargraph_series.push({
-            data: data["boiler_heat_kwhd"], color: 0,
-            bars: { show: true, align: "center", barWidth: 0.75 * DAY, fill: 1.0, lineWidth: 0 }
+            data: data["boiler_heat_kwhd"], color: flot_color(0), label: "Heat",
+            bars: { show: true, align: "center", barWidth: [0.75 * DAY, true], fill: 1.0, lineWidth: 0 }
         });
 
         for (var z in data["boiler_heat_kwhd"]) {
@@ -1030,8 +1037,8 @@ function bargraph_load(start, end) {
     if (elec_enabled) {
         data["boiler_elec_kwhd"] = feed.getdata(feeds["boiler_elec_kwh"].id, start, end, "daily", 0, 1);
         bargraph_series.push({
-            data: data["boiler_elec_kwhd"], color: 1,
-            bars: { show: true, align: "center", barWidth: 0.75 * DAY, fill: 1.0, lineWidth: 0 }
+            data: data["boiler_elec_kwhd"], color: flot_color(1), label: "Electric",
+            bars: { show: true, align: "center", barWidth: [0.75 * DAY, true], fill: 1.0, lineWidth: 0 }
         });
 
         for (var z in data["boiler_elec_kwhd"]) {
@@ -1056,7 +1063,7 @@ function bargraph_load(start, end) {
                     }
                 }
                 bargraph_series.push({
-                    data: cop_data, color: "#44b3e2", yaxis: 3,
+                    data: cop_data, color: "#44b3e2", yaxis: 3, label: "Efficiency",
                     points: { show: true }
                 });
             }
@@ -1068,54 +1075,62 @@ function bargraph_load(start, end) {
         if ((end - start) < 120 * DAY) {
             data["boiler_outsideT_daily"] = feed.getdata(feeds["boiler_outsideT"].id, start, end, "daily", 1, 0);
             bargraph_series.push({
-                data: data["boiler_outsideT_daily"], color: 4, yaxis: 2,
+                data: data["boiler_outsideT_daily"], color: flot_color(4), yaxis: 2, label: "Outside temperature",
                 lines: { show: true, align: "center", fill: false }, points: { show: false }
             });
         }
     }
 
     var cop_in_window = heat_kwh_in_window / (elec_kwh_in_window + fuel_kwh_in_window);
-    if (cop_in_window < 0) cop_in_window = 0;
-    $("#window-cop").html((cop_in_window).toFixed(2));
+    if (!(cop_in_window > 0)) cop_in_window = 0;
+    $("#window-efficiency").html((cop_in_window * 100).toFixed(1) + "%");
 
     var tooltip_text = "";
     tooltip_text += "Fuel: " + fuel_kwh_in_window.toFixed(0) + " kWh (" + (fuel_kwh_in_window / days_fuel).toFixed(1) + " kWh/d)\n";    
     tooltip_text += "Electric: " + elec_kwh_in_window.toFixed(0) + " kWh (" + (elec_kwh_in_window / days_elec).toFixed(1) + " kWh/d)\n";
     tooltip_text += "Heat: " + heat_kwh_in_window.toFixed(0) + " kWh (" + (heat_kwh_in_window / days_heat).toFixed(1) + " kWh/d)\n";
     tooltip_text += "Days: " + days_elec;
-    $("#window-cop").attr("title", tooltip_text);
-
+    $("#window-efficiency").attr("title", tooltip_text);
 
     set_url_view_params('daily', start, end);
-    
-    $("#window-efficiency-bound").hide();
 }
 
 function bargraph_draw() {
     var options = {
+        series: { lines: { lineWidth: 2 } },
         xaxis: {
             mode: "time",
             timezone: "browser",
-            font: { size: flot_font_size, color: "#666" },
+            timeBase: "milliseconds",
+            autoScale: "none",
+            font: { size: flot_font_size, color: flot_font_color(), fill: flot_font_color() },
             // labelHeight:-5
-            reserveSpace: false
+            reserveSpace: false,
+            // Half a day earlier so the first bar is not cut
+            min: bargraph_start - 0.5 * DAY,
+            max: bargraph_end - 0.5 * DAY
         },
         yaxes: [{
-            font: { size: flot_font_size, color: "#666" },
+            font: { size: flot_font_size, color: flot_font_color(), fill: flot_font_color() },
             // labelWidth:-5
             reserveSpace: false,
-            min: 0
+            min: 0,
+            autoScale: "none"
         }, {
-            font: { size: flot_font_size, color: "#9440ed" },
-            // labelWidth:-5
-            reserveSpace: false,
-            // max:40
+            // Temperature and efficiency scales on the right, coloured as their series
+            font: { size: flot_font_size, color: "#9440ed", fill: "#9440ed" },
+            position: "right",
+            labelWidth: 36,
+            tickFormatter: function (v, axis) { return v.toFixed(axis.tickDecimals) + "\u00b0"; }
         }, {
-            font: { size: flot_font_size, color: "#44b3e2" },
-            reserveSpace: false,
-            min: 0
+            font: { size: flot_font_size, color: "#44b3e2", fill: "#44b3e2" },
+            position: "right",
+            labelWidth: 30,
+            min: 0,
+            autoScale: "none"
         }],
-        selection: { mode: "x" },
+        selection: { mode: "x", color: "#e8cfac", visualization: "fill" },
+        legend: { show: false },
         grid: {
             show: true,
             color: "#aaa",
@@ -1125,9 +1140,11 @@ function bargraph_draw() {
         }
     }
     if ($('#placeholder').width()) {
-        var plot = $.plot($('#placeholder'), bargraph_series, options);
-        $('#placeholder').append("<div id='bargraph-label' style='position:absolute;left:50px;top:30px;color:#666;font-size:12px'></div>");
+        var plot = Flot.plot(document.getElementById('placeholder'), bargraph_series, options);
+        $('#placeholder').append("<div id='bargraph-label' style='position:absolute;left:50px;top:30px;color:var(--bs-secondary-color);font-size:12px'></div>");
     }
+    chart_legend(bargraph_series);
+    boiler_timebar_sync();
 }
 
 // -------------------------------------------------------------------------------
@@ -1219,16 +1236,16 @@ function draw_histogram(histogram) {
 
     var options = {
         // lines: { fill: true },
-        bars: { show: true, align: "center", barWidth: (1 / 200) * 0.8, fill: 1.0, lineWidth: 0 },
+        series: { bars: { show: true, align: "center", barWidth: [(1 / 200) * 0.8, true], fill: 1.0, lineWidth: 0 } },
         xaxis: {
             // mode: "time", timezone: "browser", 
-            min: 0.2, max: 0.8,
-            font: { size: flot_font_size, color: "#666" },
+            min: 0.2, max: 0.8, autoScale: "none",
+            font: { size: flot_font_size, color: flot_font_color(), fill: flot_font_color() },
             reserveSpace: false
         },
         yaxes: [
             //{ min: 0,font: {size:flot_font_size, color:"#666"},reserveSpace:false},
-            { font: { size: flot_font_size, color: "#666" }, reserveSpace: false }
+            { font: { size: flot_font_size, color: flot_font_color(), fill: flot_font_color() }, reserveSpace: false }
         ],
         grid: {
             show: true,
@@ -1241,14 +1258,15 @@ function draw_histogram(histogram) {
             margin: { top: 30 }
         },
         //selection: { mode: "x" },
-        legend: { position: "NW", noColumns: 6 }
+        legend: { show: true, position: "nw", noColumns: 6 }
     }
     if ($('#histogram').width() > 0) {
-        $.plot($('#histogram'), [{ data: sorted_histogram }], options);
+        Flot.plot(document.getElementById('histogram'), [{ data: sorted_histogram }], options);
     }
 }
 
-$('#histogram').bind("plothover", function (event, pos, item) {
+if (document.getElementById('histogram')) document.getElementById('histogram').addEventListener("plothover", function (event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item) {
         var z = item.dataIndex;
 

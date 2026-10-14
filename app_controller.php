@@ -16,7 +16,7 @@ function app_controller()
 {
     global $mysqli,$redis,$path,$session,$route,$user,$settings,$v;
     // Force cache reload of css and javascript
-    $v = 39;
+    $v = 43;
 
     $result = false;
 
@@ -42,8 +42,12 @@ function app_controller()
     // --------------------------------------------------------------
 
     if ($route->action == "list" && $session['read']) {
-        $route->format = "json";
-        return $appconfig->get_list($session['userid']);
+        if ($route->format == "html") {
+            return view("Modules/app/Views/app_list.php");
+        } else {
+            $route->format = "json";
+            return $appconfig->get_list($session['userid']);
+        }
     }
 
     // List of available apps json
@@ -56,7 +60,6 @@ function app_controller()
     else if ($route->action == "new" && $session['write']) {
         $applist = $appconfig->get_list($session['userid']);
         $route->format = "html";
-        $result .= "<link href='".$path."Modules/app/Views/css/app.css?v=".$v."' rel='stylesheet'>";
         $appavail = $appconfig->get_available();
         $result .= view("Modules/app/Views/app_view.php", array("apps"=>$appavail));
         return $result;
@@ -212,6 +215,11 @@ function app_controller()
         }
     }
 
+    // Name of the app found, also when opened by id or when the default app was returned
+    if ($app && isset($app->name)) {
+        $app_name = $app->name;
+    }
+
     if (!$app) {
         if ($route->action == "view" || $route->action == "") {
             return ""; // redirects to login
@@ -219,6 +227,20 @@ function app_controller()
             return array("success"=>false, "message"=>"invalid app or permissions");
         }
     }
+
+    // An app is meant to sit in an iframe on another site, so the page takes
+    // the embed frame policy. That includes a private one: the way an owner
+    // embeds it is to put a key in the iframe url, and a key in the url is not
+    // the ambient authority a session cookie is. The site doing the framing had
+    // to know the key to write the url, and knowing it already grants
+    // everything framing the page could reach. set_frame_policy in core.php
+    // holds the relaxation back for a page the session cookie authenticated,
+    // which is the clickjacking case.
+    //
+    // Reached only past the access check above, so the app is public or the
+    // requester owns it. Scoped to the page, since the json routes below are
+    // not framed and have no reason to relax.
+    if ($route->action == "view" || $route->action == "") allow_public_embed();
 
     // Check if the app has a specific controller
     // e.g. myheatpump/myheatpump_controller.php
@@ -233,8 +255,7 @@ function app_controller()
     else if ($route->action == "view" || $route->action == "") {
         $route->format = "html";
         $result = "\n<!-- global app css and js -->";
-        $result .= "\n" . '<link href="' . $path . 'Modules/app/Views/css/app.css?v=' . $v . '" rel="stylesheet">';
-        $result .= "\n" . '<script src="' . $path . 'Modules/app/Views/js/app.js?v=' . $v . '"></script>';
+        $result .= "\n" . '<script src="' . $path . 'Modules/app/Views/js/app.js?v=' . filemtime("Modules/app/Views/js/app.js") . '"></script>';
         $result .= "\n\n <!-- app specific view -->\n";
 
         $dir = $appconfig->get_app_dir($app->app);

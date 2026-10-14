@@ -1,0 +1,25 @@
+/* UK Grid. Shared components are in Modules/app/Views/css/app-kit.css. */
+
+#placeholder_bound { width: 100%; }
+#placeholder {
+    width: 100%;
+    height: calc(100vh - 24rem);
+    min-height: 250px;
+}
+
+/* Legend items that switch a series on and off */
+.uk-series {
+    padding: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+}
+.uk-series:hover { color: var(--bs-emphasis-color); }
+.uk-series.is-off { opacity: 0.4; }
+
+.uk-info {
+    font-size: 13px;
+    color: var(--ec-text-secondary);
+}
+.uk-info p { margin: 0; }

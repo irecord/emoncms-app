@@ -1,316 +1,224 @@
 <?php
 defined('EMONCMS_EXEC') or die('Restricted access');
 global $path, $session, $v;
+
+load_js("Modules/feed/feed.js");
+load_js("Lib/js/flot-5.1.0.mod.min.js");
+load_js("Modules/app/Lib/vis.helper.js");
+load_js("Modules/app/Lib/remotefeed.js");
+load_js("Lib/js/vue.global.prod-3.5.22.min.js");
+load_js("Lib/js/DateTimePicker.js");
+load_css("Theme/css/datetimepicker.css");
+load_css("Modules/app/Views/css/app-kit.css");
+load_css("Modules/app/apps/OpenEnergyMonitor/storagesim/storagesim.css");
 ?>
 
-<link href="<?php echo $path; ?>Modules/app/Views/css/config.css?v=1" rel="stylesheet">
-<link href="<?php echo $path; ?>Modules/app/Views/css/dark.css?v=<?php echo $v; ?>" rel="stylesheet">
+<div class="app-page" data-bs-theme="dark">
 
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/appconf.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/feed/feed.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.min.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.time.min.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.selection.min.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.stack.min.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/vis.helper.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/remotefeed.js?v=5"></script>
+<section id="app-block" style="display:none">
 
-<script src="<?php echo $path; ?>Lib/vue.min.js"></script>
-
-<div id="app-block" style="display:none">
-    <div class="col1">
-        <div class="col1-inner">
-            <div style="float:right;">
-                <div class='btn-group' style="margin-top:10px;">
-                    <button class='btn time' type='button' time='1'>D</button>
-                    <button class='btn time' type='button' time='7'>W</button>
-                    <button class='btn time' type='button' time='30'>M</button>
-                    <button class='btn time' type='button' time='365'>Y</button>
-                    <button class='btn' id='zoomin'>+</button>
-                    <button class='btn' id='zoomout'>-</button>
-                    <button class='btn' id='left'><</button>
-                    <button class='btn' id='right'>></button>
+    <div class="app-card">
+        <nav class="app-card-head">
+            <div id="tabs" class="nav nav-underline">
+                <button class="nav-link active"><i class="svg-icon-box-add"></i><?php echo tr('Storage simulator') ?></button>
+            </div>
+            <div class="app-card-tools">
+                <div class="nav">
+                    <button class="nav-link config-open" title="<?php echo tr('Configure app') ?>"><i class="svg-icon-wrench"></i></button>
+                    <button class="nav-link config-close d-none" title="<?php echo tr('Close') ?>"><i class="svg-icon-close"></i></button>
                 </div>
-
-                <button class="btn config-open" style="margin-top:10px">
-                    <i class=" icon-wrench"></i>
-                </button>
             </div>
-            <h3>Storage Simulator</h3>
+        </nav>
+    </div>
+
+    <div class="app-card app-card-body">
+        <div id="graph-nav" class="app-navbar">
+            <?php
+            $timebar_ranges = array(24 => tr('1 day'), 168 => tr('1 week'), 720 => tr('1 month'), 8760 => tr('1 year'));
+            include "Modules/app/Lib/timebar.php";
+            ?>
+        </div>
+        <?php include "Modules/app/Lib/timebar_manual.php"; ?>
+        <div id="graph"></div>
+        <div id="chart-legend" class="app-legend"></div>
+    </div>
+
+    <div id="app" class="sim-grid">
+        <div class="app-card app-card-body">
+            <div class="app-card-caption"><span class="app-section-label">Generation</span></div>
+            <table class="table align-middle mb-0">
+                <tr v-for="gen, index in generation">
+                    <td class="col-primary">{{gen.name}}</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model="gen.capacity" @change="update"><span class="input-group-text">kW</span></div></td>
+                    <td>{{ toFixed(gen.kwh, 0) }} kWh ({{ toFixed(100*gen.capacity_factor, 1) }}%)</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Nuclear / geothermal<br>(non load following)</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model="nuclear.output" @change="update"><span class="input-group-text">kW</span></div></td>
+                    <td>{{ toFixed(nuclear.kwh, 0) }} kWh ({{ toFixed(100*nuclear.capacity_factor, 1) }}%)</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Home solar feed</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model="home_solar.scale" @change="update"><span class="input-group-text">%</span></div></td>
+                    <td>{{ toFixed(home_solar.kwh, 0) }} kWh ({{ toFixed(100*home_solar.capacity_factor, 1) }}%)</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Total supply</td>
+                    <td></td>
+                    <td>{{ toFixed(supply.kwh, 0) }} kWh</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Consumption<div v-if="consumption.example" class="small text-body-secondary">Example profile: no consumption data for this period</div></td>
+                    <td></td>
+                    <td>{{ toFixed(consumption.kwh, 0) }} kWh</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Direct e-fuel demand (e.g industry, shipping or aviation)</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="consumption.efuel_demand" @change="update"><span class="input-group-text">kWh</span></div></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Primary energy factor</td>
+                    <td></td>
+                    <td>{{ toFixed(100*supply.kwh/consumption.kwh, 0) }}%</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Balance before battery storage</td>
+                    <td></td>
+                    <td>{{ toFixed(100*balance.before_store1, 0) }}%</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Surplus</td>
+                    <td></td>
+                    <td>{{ toFixed(balance.surplus, 1) }} kWh</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Unmet</td>
+                    <td></td>
+                    <td>{{ toFixed(balance.unmet, 1) }} kWh</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Peak shaving storage requirement</td>
+                    <td><div class="form-check small mb-0"><input id="show-peak-shaving" class="form-check-input" type="checkbox" v-model="show_peak_shaving_balance" @change="update"><label class="form-check-label" for="show-peak-shaving">Show</label></div></td>
+                    <td>{{ toFixed(max_peak_shaving_deficit, 1) }} kWh</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="app-card app-card-body">
+            <div class="app-card-caption"><span class="app-section-label">Store 1</span><span class="app-caption-note">E.g battery storage</span></div>
+            <table class="table align-middle mb-0">
+                <tr>
+                    <td class="col-primary">Storage capacity</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store1.capacity" @change="update"><span class="input-group-text">kWh</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">SOC start</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store1.starting_soc" @change="update"><span class="input-group-text">kWh</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Charge efficiency</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store1.charge_efficiency" @change="update"><span class="input-group-text">%</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Discharge efficiency</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store1.discharge_efficiency" @change="update"><span class="input-group-text">%</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Max charge rate</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store1.charge_max" @change="update"><span class="input-group-text">kW</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Max discharge rate</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store1.discharge_max" @change="update"><span class="input-group-text">kW</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Total charge</td>
+                    <td>{{ toFixed(store1.charge_kwh, 1) }} kWh ({{ toFixed(100*store1.charge_CF, 1) }}%)</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Total discharge</td>
+                    <td>{{ toFixed(store1.discharge_kwh, 1) }} kWh ({{ toFixed(100*store1.discharge_CF, 1) }}%)</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Cycles</td>
+                    <td>{{ toFixed(store1.cycles, 1) }} cycles</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Balance after store 1</td>
+                    <td>{{ toFixed(100*balance.after_store1, 0) }}%</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="app-card app-card-body">
+            <div class="app-card-caption"><span class="app-section-label">Store 2</span><span class="app-caption-note">E.g H2, e-Methane, e-Methanol</span></div>
+            <table class="table align-middle mb-0">
+                <tr>
+                    <td class="col-primary">Storage capacity</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store2.capacity" @change="update"><span class="input-group-text">kWh</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">SOC start</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store2.starting_soc" @change="update"><span class="input-group-text">kWh</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Charge efficiency</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store2.charge_efficiency" @change="update"><span class="input-group-text">%</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Discharge efficiency</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store2.discharge_efficiency" @change="update"><span class="input-group-text">%</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Max charge rate</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store2.charge_max" @change="update"><span class="input-group-text">kW</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Max discharge rate</td>
+                    <td><div class="input-group"><input type="text" class="form-control input-75" v-model.number="store2.discharge_max" @change="update"><span class="input-group-text">kW</span></div></td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Total charge</td>
+                    <td>{{ toFixed(store2.charge_kwh, 1) }} kWh ({{ toFixed(100*store2.charge_CF, 1) }}%)</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Total discharge</td>
+                    <td>{{ toFixed(store2.discharge_kwh, 1) }} kWh ({{ toFixed(100*store2.discharge_CF, 1) }}%)</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Cycles</td>
+                    <td>{{ toFixed(store2.cycles, 1) }} cycles</td>
+                </tr>
+                <tr>
+                    <td class="col-primary">Balance after store 2</td>
+                    <td>{{ toFixed(100*balance.after_store2, 0) }}%</td>
+                </tr>
+            </table>
+            <button class="btn btn-outline-primary mt-2" @click="auto">Auto</button>
         </div>
     </div>
 
-    <div id="graph" style="height:500px; width:100%;"></div>
-    <br>
-    <div id="app">
-        <div class="row">
-            <div class="span5" style="background-color:aquamarine">
-                <h4>Generation</h4>
-                <table class="table">
-                    <tr v-for="gen, index in generation">
-                        <td>{{gen.name}}</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model="gen.capacity" style="width:50px" @change="update">
-                                <span class="add-on">kW</span>
-                            </div>
-                        </td>
-                        <td>{{ gen.kwh | toFixed(0) }} kWh ({{ 100*gen.capacity_factor | toFixed(1)}}%)</td>
-                    </tr>
-                    <tr>
-                        <td>Nuclear / geothermal<br>(non load following)</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model="nuclear.output" style="width:50px" @change="update">
-                                <span class="add-on">kW</span>
-                            </td>
-                        <td>{{ nuclear.kwh | toFixed(0) }} kWh ({{ 100*nuclear.capacity_factor | toFixed(1)}}%)</td>
-                    </tr>
-                    <tr>
-                        <td>Home solar feed</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model="home_solar.scale" style="width:50px" @change="update">
-                                <span class="add-on">%</span>
-                            </td>
-                        <td>{{ home_solar.kwh | toFixed(0) }} kWh ({{ 100*home_solar.capacity_factor | toFixed(1)}}%)</td>
-                    </tr>
-                    <tr>
-                        <td>Total supply</td>
-                        <td></td>
-                        <td>{{ supply.kwh | toFixed(0) }} kWh</td>
-                    </tr>
-                    <tr>
-                        <td>Consumption</td>
-                        <td></td>
-                        <td>{{ consumption.kwh | toFixed(0) }} kWh</td>
-                    </tr>
-                    <tr>
-                        <td>Direct e-fuel demand (e.g industry, shipping or aviation)</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="consumption.efuel_demand" style="width:50px" @change="update">
-                                <span class="add-on">kWh</span>
-                            </div>
-                        </td>
-                        <td></td>
-                    </tr>                    
-                    <tr>
-                        <td>Primary energy factor</td>
-                        <td></td>
-                        <td>{{ 100*supply.kwh/consumption.kwh | toFixed(0) }}%</td>
-                    </tr>
-                    <tr>
-                        <td>Balance before battery storage</td>
-                        <td></td>
-                        <td>{{ 100*balance.before_store1 | toFixed(0) }}%</td>
-                    </tr>
+</section>
 
-                    <tr>
-                        <td>Surplus</td>
-                        <td></td>
-                        <td>{{ balance.surplus | toFixed(1) }} kWh</td>
-                    </tr>
-                    <tr>
-                        <td>Unmet</td>
-                        <td></td>
-                        <td>{{ balance.unmet | toFixed(1) }} kWh</td>
-                    </tr>
-                    <tr>
-                        <td>Peak shaving storage requirement</td>
-                        <td>
-                            <div class="input-append">
-                                <span class="add-on">Show</span>
-                                <span class="add-on">
-                                <input type="checkbox" v-model="show_peak_shaving_balance" @change="update"/>
-                                </span>
-                            </div>
-                        </td>
-                        <td>{{ max_peak_shaving_deficit | toFixed(1) }} kWh</td>
-                    </tr>                  
-                </table>
-            </div>
-            <div class="span3" style="background-color:darkseagreen">
-                <h4>Store 1</h4>
-                <p>E.g battery storage</p>
-                <table class="table">
-                    <tr>
-                        <td>Storage capacity</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store1.capacity" style="width:50px" @change="update">
-                                <span class="add-on">kWh</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>SOC start</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store1.starting_soc" style="width:50px" @change="update">
-                                <span class="add-on">kWh</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Charge efficiency</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store1.charge_efficiency" style="width:50px" @change="update">
-                                <span class="add-on">%</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Discharge efficiency</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store1.discharge_efficiency" style="width:50px" @change="update">
-                                <span class="add-on">%</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Max charge rate</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store1.charge_max" style="width:50px" @change="update">
-                                <span class="add-on">kW</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Max discharge rate</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store1.discharge_max" style="width:50px" @change="update">
-                                <span class="add-on">kW</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Total charge</td>
-                        <td>{{ store1.charge_kwh | toFixed(1) }} kWh ({{ 100*store1.charge_CF | toFixed(1)}}%)</td>
-                    </tr>
-                    <tr>
-                        <td>Total discharge</td>
-                        <td>{{ store1.discharge_kwh | toFixed(1) }} kWh ({{ 100*store1.discharge_CF | toFixed(1)}}%)</td>
-                    </tr>
-                    <tr>
-                        <td>Cycles</td>
-                        <td>{{ store1.cycles | toFixed(1) }} cycles</td>
-                    </tr>
-                    <tr>
-                        <td>Balance after store 1</td>
-                        <td>{{ 100*balance.after_store1 | toFixed(0) }}%</td>
-                    </tr>
-                </table>
-
-            </div>
-
-            <div class="span3" style="background-color:deepskyblue">
-                <h4>Store 2</h4>
-                <p>E.g H2, e-Methane, e-Methanol</p>
-                <table class="table">
-                    <tr>
-                        <td>Storage capacity</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store2.capacity" style="width:50px" @change="update">
-                                <span class="add-on">kWh</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>SOC start</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store2.starting_soc" style="width:50px" @change="update">
-                                <span class="add-on">kWh</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Charge efficiency</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store2.charge_efficiency" style="width:50px" @change="update">
-                                <span class="add-on">%</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Discharge efficiency</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store2.discharge_efficiency" style="width:50px" @change="update">
-                                <span class="add-on">%</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Max charge rate</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store2.charge_max" style="width:50px" @change="update">
-                                <span class="add-on">kW</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Max discharge rate</td>
-                        <td>
-                            <div class="input-append">
-                                <input type="text" v-model.number="store2.discharge_max" style="width:50px" @change="update">
-                                <span class="add-on">kW</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Total charge</td>
-                        <td>{{ store2.charge_kwh | toFixed(1) }} kWh ({{ 100*store2.charge_CF | toFixed(1)}}%)</td>
-                    </tr>
-                    <tr>
-                        <td>Total discharge</td>
-                        <td>{{ store2.discharge_kwh | toFixed(1) }} kWh ({{ 100*store2.discharge_CF | toFixed(1)}}%)</td>
-                    </tr>
-                    <tr>
-                        <td>Cycles</td>
-                        <td>{{ store2.cycles | toFixed(1) }} cycles</td>
-                    </tr>
-                    <tr>
-                        <td>Balance after store 2</td>
-                        <td>{{ 100*balance.after_store2 | toFixed(0) }}%</td>
-                    </tr>
-                </table>
-
-                <button class="btn" @click="auto">Auto</button>
-
-            </div>
-        </div>
-    </div>
+<div id="appconf-description" style="display:none">
+    <p class="lead">Explore adding energy storage to increase supply and demand matching.</p>
 </div>
-
-<div id="app-setup" style="display:none; padding-top:50px" class="block">
-    <h2 class="app-config-title">Storage Simulator</h2>
-    <div class="app-config-description">
-        <div class="app-config-description-inner">
-            Explore adding energy storage to increase supply and demand matching.
-        </div>
-    </div>
-    <div class="app-config"></div>
-</div>
+<?php include('Modules/app/Lib/appconf/appconf.php'); ?>
 
 <div class="ajax-loader"></div>
+
+</div>
 
 <script>
     var apikey = "<?php print $apikey; ?>";
     var sessionwrite = <?php echo $session['write']; ?>;
 
+    config.app_name = "Storage Simulator";
     config.id = <?php echo $id; ?>;
     config.name = "<?php echo $name; ?>";
     config.public = <?php echo $public; ?>;
     config.db = <?php echo json_encode($config); ?>;
 </script>
 
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/storagesim/storagesim.js?v=31"></script>
+<?php load_js("Modules/app/apps/OpenEnergyMonitor/storagesim/storagesim.js"); ?>

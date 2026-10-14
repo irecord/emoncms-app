@@ -1,118 +1,113 @@
 <?php
-    defined('EMONCMS_EXEC') or die('Restricted access');
-    global $path, $session, $v;
+defined('EMONCMS_EXEC') or die('Restricted access');
+global $path, $session, $v;
+
+load_js("Modules/feed/feed.js");
+load_js("Lib/js/flot-5.1.0.mod.min.js");
+load_js("Modules/app/Lib/vis.helper.js");
+load_js("Modules/app/Lib/timeseries.js");
+load_js("Lib/js/DateTimePicker.js");
+load_css("Theme/css/datetimepicker.css");
+load_css("Modules/app/Views/css/app-kit.css");
+load_css("Modules/app/apps/OpenEnergyMonitor/myenergy/myenergy.css");
 ?>
-<link href="<?php echo $path; ?>Modules/app/Views/css/config.css?v=<?php echo $v; ?>" rel="stylesheet">
-<link href="<?php echo $path; ?>Modules/app/Views/css/dark.css?v=<?php echo $v; ?>" rel="stylesheet">
 
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/appconf.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/feed/feed.js?v=<?php echo $v; ?>"></script>
+<div class="app-page" data-bs-theme="dark">
 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.min.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.time.min.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/jquery.flot.selection.min.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/flot/date.format.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Lib/vis.helper.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/timeseries.js?v=<?php echo $v; ?>"></script>
-<nav id="buttons" class="d-flex justify-content-between">
-    <ul id="tabs" class="nav nav-pills mb-0">
-        <li><button class="balanceline btn btn-large btn-link btn-inverse myelectric-view-kwh" title="<?php echo tr('Show Balance') ?>">
-            <?php echo tr("Show Balance") ?>
-        </li>
-    </ul>
-    <?php include(dirname(__DIR__).'/config-nav.php'); ?>
+<section id="app-block" style="display:none">
 
-</nav>
-    
-<section id="app-block" style="display:none" class="block">
-    <div id="summary" class="d-flex justify-content-between">
-        <div class="text-center">
-            <h5 class="electric-title mb-0 text-md-larger text-light"><?php echo tr('USE NOW') ?></h5>
-            <h2 class="power-value display-sm-4 display-md-3 display-lg-2 mt-0 mb-lg-3 text-primary"><span class="usenow"></span><span class="power-unit"></span></h2>
-        </div>
-        <div class="text-center">
-            <h5 class="electric-title mb-0 text-md-larger text-light px-1"><span class="balance-label"></span></h5>
-            <h2 class="power-value display-sm-4 display-md-3 display-lg-2 mt-0 mb-lg-3"><span class="balance"></span></h2>
-        </div>
-        <div class="text-center">
-            <h5 class="electric-title mb-0 text-md-larger text-light"><?php echo tr('RENEWABLE GEN') ?></h5>
-            <h2 class="power-value display-sm-4 display-md-3 display-lg-2 my-0 text-warning "><span class="gennow"></span><span class="power-unit"></span></h2>
+    <div class="app-card">
+        <nav class="app-card-head">
+            <div id="tabs" class="nav nav-underline">
+                <button class="nav-link active"><i class="svg-icon-leaf"></i><?php echo tr('My Energy') ?></button>
+            </div>
+            <div class="app-card-tools">
+                <span id="live-status" class="app-status"><span class="app-status-dot"></span><span class="app-status-text"></span></span>
+                <div class="nav">
+                    <button class="nav-link config-open" title="<?php echo tr('Configure app') ?>"><i class="svg-icon-wrench"></i></button>
+                    <button class="nav-link config-close d-none" title="<?php echo tr('Close') ?>"><i class="svg-icon-close"></i></button>
+                </div>
+            </div>
+        </nav>
 
-            <h5 class="electric-title mt-0 mb-lg-3 text-md-larger ">
-                <span class="text-warning" title="<?php echo tr('SOLAR') ?>"><span class="d-none d-sm-inline-block"><?php echo tr('SOLAR') ?>: </span> <span class="solarnow">0</span><span class="power-unit"></span></span> | 
-                <span class="text-success" title="<?php echo tr('WIND') ?>"><span class="d-none d-sm-inline-block"><?php echo tr('WIND') ?>: </span> <span class="windnow">0</span><span class="power-unit"></span></span>
-            </h5>
-        </div>
-    </div>
-
-    <?php include(dirname(__DIR__).'/graph-nav.php'); ?>
-
-    <div id="placeholder_bound" style="width:100%; height:500px;">
-        <div id="placeholder" style="height:500px"></div>
-    </div>
-        
-    <div id="breakdown" class="d-flex justify-content-between py-lg-3 text-light">
-        <div class="appbox mb-3 text-primary">
-            <h5 class="appbox-title mb-1 text-light text-md-larger"><?php echo tr('USE') ?></h5>
-            <h2 class="appbox-value total_use_kwh my-0">--</h2>
-            <h5 class="appbox-units my-0">
-                kWh
-            </h5>
-        </div>
-        <div class="appbox mb-3 text-tertiary">
-            <h5 class="appbox-title mb-1 text-light text-md-larger px-1"><?php echo tr('WIND') ?></h5>
-            <h2 class="appbox-value total_wind_kwh my-0">--</h2>
-            <h5 class="appbox-units my-0">
-                <span id="total_export_kwh"></span>
-                <span>kWh</span>
-            </h5>
-        </div>
-        <div class="appbox mb-3 text-warning">
-            <h5 class="appbox-title mb-1 text-light text-md-larger px-1"><?php echo tr('SOLAR') ?></h5>
-            <h2 class="appbox-value total_solar_kwh my-0">--</h2>
-            <h5 class="appbox-units my-0">
-                kWh
-            </h5>
-        </div>
-        <div class="appbox mb-3 text-success">
-            <h5 class="appbox-title mb-1 text-light text-md-larger"><?php echo tr('DIRECT') ?></h5>
-            <h2 class="appbox-value total_use_direct_prc my-0">--</h2>
-            <h5 class="appbox-units my-0">
-                <span id="total_use_direct_kwh"></span>
-                <span>kWh</span>
-            </h5>
-        </div>
-        <div class="appbox mb-3 text-danger">
-            <h5 class="appbox-title mb-1 text-light text-md-larger"><?php echo tr('GRID') ?></h5>
-            <h2 class="appbox-value total_use_via_store_kwh my-0">--</h2>
-            <h5 class="appbox-units my-0">
-                <span id="total_import_kwh"></span>
-                <span>kWh</span>
-            </h5>
-        </div>
-    </div>
-</section>
-
-<section id="app-setup" class="hide pb-3 px-3">
-    <!-- instructions and settings -->
-    <div class="row-fluid">
-        <div class="span7">
-            <div class="text-light">
-                <h2 class="app-config-title text-warning"><?php echo tr('My Solar'); ?> & <?php echo tr('Wind'); ?></h2>
-                <p class="lead">This app extends the My Solar app by adding in a 'share of UK wind' estimate.</p>
-                <p>The share of wind estimate is calculated by using real-time electricity data from wind power in the uk and then scaling it so that the annual wind generation matches a percentage of annual household consumption. The default estimate assumes 60% or near 2000 kWh annually. This is close to the fuel mix quoted by two of the UK's leading green electricity suppliers.</p>
-                <p><strong class="text-white">Auto configure:</strong> This app can auto-configure connecting to emoncms feeds with the names shown on the right, alternatively feeds can be selected by clicking on the edit button.</p>
-                <p><strong class="text-white">Cumulative kWh</strong> feeds can be generated from power feeds with the power_to_kwh input processor.</p>
-                <img src="../Modules/app/images/mysolar_app.png" class="d-none d-sm-inline-block">
+        <div class="app-live is-center is-large">
+            <div>
+                <div class="app-live-label"><?php echo tr('USE') ?></div>
+                <div class="app-live-value text-use"><span class="usenow"></span><span class="power-unit"></span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><span class="balance-label">-</span></div>
+                <div class="app-live-value"><span class="balance">--</span><span class="power-unit"></span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><span class="d-inline d-sm-none"><?php echo tr('GEN') ?></span><span class="d-none d-sm-inline"><?php echo tr('RENEWABLE GEN') ?></span></div>
+                <div class="app-live-value text-solar"><span class="gennow"></span><span class="power-unit"></span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('SOLAR') ?></div>
+                <div class="app-live-value text-solar"><span class="solarnow">0</span><span class="power-unit"></span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('WIND') ?></div>
+                <div class="app-live-value text-wind"><span class="windnow">0</span><span class="power-unit"></span></div>
             </div>
         </div>
-        <div class="span5 app-config pt-3"></div>
     </div>
+
+    <div class="app-card app-card-body">
+        <div id="graph-nav" class="app-navbar">
+            <?php include "Modules/app/Lib/timebar.php"; ?>
+        </div>
+
+        <?php include "Modules/app/Lib/timebar_manual.php"; ?>
+
+        <div id="placeholder_bound">
+            <div id="placeholder"></div>
+        </div>
+        <div id="chart-legend" class="app-legend"></div>
+    </div>
+
+    <div class="app-card app-card-body">
+        <div class="app-card-caption">
+            <span class="app-section-label"><?php echo tr('Energy') ?> &middot; <?php echo tr('this window') ?></span>
+        </div>
+        <div class="app-live is-row is-center">
+            <div>
+                <div class="app-live-label"><?php echo tr('USE') ?></div>
+                <div class="app-live-value text-use"><span class="total_use_kwh">--</span><span class="power-unit-static">kWh</span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('WIND') ?></div>
+                <div class="app-live-value text-wind"><span class="total_wind_kwh">--</span><span class="power-unit-static">kWh</span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('SOLAR') ?></div>
+                <div class="app-live-value text-solar"><span class="total_solar_kwh">--</span><span class="power-unit-static">kWh</span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('DIRECT') ?></div>
+                <div class="app-live-value text-direct"><span class="total_use_direct_prc">--</span><span class="power-unit-static"><span id="total_use_direct_kwh"></span> kWh</span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('GRID') ?></div>
+                <div class="app-live-value text-import"><span class="total_import_prc">--</span><span class="power-unit-static"><span id="total_import_kwh"></span> kWh</span></div>
+            </div>
+        </div>
+    </div>
+
 </section>
+
+<div id="appconf-description" style="display:none">
+    <p class="lead">This app extends the My Solar app by adding in a 'share of UK wind' estimate.</p>
+    <p>The share of wind estimate is calculated by using real-time electricity data from wind power in the uk and then scaling it so that the annual wind generation matches a percentage of annual household consumption. The default estimate assumes 60% or near 2000 kWh annually. This is close to the fuel mix quoted by two of the UK's leading green electricity suppliers.</p>
+</div>
+<?php include('Modules/app/Lib/appconf/appconf.php'); ?>
 
 <div class="ajax-loader"></div>
 
-<script src="<?php echo $path; ?>Lib/misc/gettext.js?v=<?php echo $v; ?>"></script> 
+</div>
+
+<?php load_js("Lib/js/gettext.js"); ?> 
 <script>
 function getTranslations(){
     return {
@@ -120,439 +115,18 @@ function getTranslations(){
         'Solar pv generation in watts': "<?php echo tr('Solar pv generation in watts') ?>",
         'kWh of wind energy bought annually': "<?php echo tr('kWh of wind energy bought annually') ?>",
         'Display power as kW': "<?php echo tr('Display power as kW') ?>",
+        'EXCESS': "<?php echo tr('EXCESS') ?>",
+        'BACKUP': "<?php echo tr('BACKUP') ?>",
     }
 }
 </script>
 <script>
-
-// ----------------------------------------------------------------------
-// Globals
-// ----------------------------------------------------------------------
+// Server values, used by myenergy.js
 var apikey = "<?php echo $apikey; ?>";
 var sessionwrite = <?php echo $session['write']; ?>;
-feed.apikey = apikey;
-feed.public_userid = public_userid;
-feed.public_username = public_username;
-// ----------------------------------------------------------------------
-// Display
-// ----------------------------------------------------------------------
-$("body").css('background-color','#222');
-$(window).ready(function(){
-    $("#footer").css('background-color','#181818');
-    $("#footer").css('color','#999');
-});
-if (!sessionwrite) $(".config-open").hide();
-
-// ----------------------------------------------------------------------
-// Configuration
-// ----------------------------------------------------------------------
-config.app = {
-    "use":{"type":"feed", "autoname":"use", "description":tr("House or building use in watts")},
-    "solar":{"optional":true, "type":"feed", "autoname":"solar", "description":tr("Solar pv generation in watts")},
-    "windkwh":{"type":"value", "default":2000, "name": "kWh Wind", "description":tr("kWh of wind energy bought annually")},
-    "kw":{"type":"checkbox", "default":0, "name": "Show kW", "description":tr("Display power as kW")}
-};
-
-config.id = <?php echo $id; ?>;
+config.id = "<?php echo $id; ?>";
 config.name = "<?php echo $name; ?>";
 config.public = <?php echo $public; ?>;
 config.db = <?php echo json_encode($config); ?>;
-config.feeds = feed.list();
-
-config.initapp = function(){init()};
-config.showapp = function(){show()};
-config.hideapp = function(){hide()};
-
-// ----------------------------------------------------------------------
-// APPLICATION
-// ----------------------------------------------------------------------
-var feeds = {};
-
-var live = false;
-var show_balance_line = 0;
-var reload = true;
-var autoupdate = true;
-var lastupdate = 0;
-var historyseries = [];
-var latest_start_time = 0;
-var panning = false;
-
-// MW - this is the average UK wind power output in MW between March 2022 and March 2023
-// used to scale the share of UK Wind power
-var average_wind_power = 7188; 
-
-var live_timerange = 0;
-
-config.init();
-
-// App start function
-function init()
-{        
-    if (config.app.solar.value=="disable") {
-        config.app.solar.value = false;
-    }
-
-    app_log("INFO","mysolarpv init");
-    
-    var timeWindow = (3600000*6.0*1);
-    view.end = +new Date;
-
-    var meta = feed.getmeta(config.app.use.value);
-    // If the feed is more than 1 hour behind then start the view at the end of the feed
-    if ((view.end*0.001-meta.end_time)>3600) {
-        view.end = meta.end_time*1000;
-        autoupdate = false;
-    }
-    view.start = view.end - timeWindow;
-    live_timerange = timeWindow;
-    
-    
-    // The first view is the powergraph, we load the events for the power graph here.
-    powergraph_events();
-    
-    // The buttons for these powergraph events are hidden when in historic mode 
-    // The events are loaded at the start here and dont need to be unbinded and binded again.
-    $("#zoomout").click(function () {view.zoomout(); reload = true; autoupdate = false; draw();});
-    $("#zoomin").click(function () {view.zoomin(); reload = true; autoupdate = false; draw();});
-    $('#right').click(function () {view.panright(); reload = true; autoupdate = false; draw();});
-    $('#left').click(function () {view.panleft(); reload = true; autoupdate = false; draw();});
-    
-    $('.time').click(function () {
-        view.timewindow($(this).attr("time")/24.0); 
-        reload = true; 
-        autoupdate = true;
-        live_timerange = view.end - view.start;
-        draw();
-    });
-    
-    $(".balanceline").click(function () {
-        $link = $(this);
-        $link.toggleClass('active');
-        show_balance_line = $link.is('.active') ? 1: 0;
-        draw();
-    });     
-}
-
-function show() 
-{
-    app_log("INFO","mysolarpv show");
-    resize();
-    livefn();
-    live = setInterval(livefn,5000);
-
-}
-
-function resize() 
-{
-    app_log("INFO","mysolarpv resize");
-    
-    var top_offset = 0;
-    var placeholder_bound = $('#placeholder_bound');
-    var placeholder = $('#placeholder');
-
-    var width = placeholder_bound.width();
-    var height = $(window).height()*0.55;
-
-    if (height>width) height = width;
-    if (height<180) height = 180;
-
-    placeholder.width(width);
-    placeholder_bound.height(height);
-    placeholder.height(height-top_offset);
-
-    draw();
-}
-
-function hide() 
-{
-    clearInterval(live);
-}
-
-function livefn()
-{
-    // Check if the updater ran in the last 60s if it did not the app was sleeping
-    // and so the data needs a full reload.
-    var now = +new Date();
-    if ((now-lastupdate)>60000) reload = true;
-    lastupdate = now;
-    var powerUnit = config.app.kw.value===true ? 'kW' : 'W';
-    var feeds = feed.listbyid();
-    if (feeds === null) { return; }
-    var solar_now = 0;
-    if (config.app.solar.value)
-        solar_now = parseInt(feeds[config.app.solar.value].value);
-        
-    var use_now = parseInt(feeds[config.app.use.value].value);
-    var gridwind = getvalueremote(67088);
-    var average_power = ((config.app.windkwh.value/365.0)/0.024);
-    var wind_now = Math.round((average_power / average_wind_power) * gridwind);
-
-    if (autoupdate) {
-        var updatetime = feeds[config.app.use.value].time;
-        
-        if (config.app.solar.value) {
-            timeseries.append("solar",updatetime,solar_now);
-            timeseries.trim_start("solar",view.start*0.001);
-        }
-        
-        timeseries.append("use",updatetime,use_now);
-        timeseries.trim_start("use",view.start*0.001);
-        timeseries.append("remotewind",updatetime,gridwind);
-        timeseries.trim_start("remotewind",view.start*0.001);
-        // Advance view
-        view.end = now;
-        view.start = now - live_timerange
-    }
-    // Lower limit for solar
-    if (solar_now<10) solar_now = 0;
-    var gen_now = solar_now + wind_now;
-    var balance = gen_now - use_now;
-    
-    if (balance==0) {
-        $(".balance-label").html("PERFECT BALANCE");
-        $(".balance").html("");
-    }
-    
-    if (balance>0) {
-        $(".balance-label").html("EXCESS");
-        $(".balance").html("<span style='color:#2ed52e'><b>"+Math.round(Math.abs(balance))+powerUnit+"</b></span>");
-    }
-    
-    if (balance<0) {
-        $(".balance-label").html("BACKUP");
-        $(".balance").html("<span style='color:#d52e2e'><b>"+Math.round(Math.abs(balance))+powerUnit+"</b></span>");
-    }
-
-    // convert W to kW
-    if(powerUnit === 'kW') {
-        solar_now = as_kw(solar_now)
-        use_now = as_kw(use_now)
-        gridwind = as_kw(gridwind)
-        average_power = as_kw(average_power)
-        wind_now = as_kw(wind_now)
-        gen_now = as_kw(gen_now)
-        balance = as_kw(balance)
-        $('.power-unit').text('kW')
-        $('#app-block').addClass('in_kw');
-    } else {
-        gen_now = Math.round(gen_now)
-        wind_now = Math.round(wind_now)
-        $('.power-unit').text('W')
-        $('#app-block').removeClass('in_kw');
-    }
-
-    $(".gennow").html(gen_now);
-    $(".solarnow").html(solar_now);
-    $(".windnow").html(wind_now);
-    $(".usenow").html(use_now);
-    
-    // Only redraw the graph if its the power graph and auto update is turned on
-    if (autoupdate) draw();
-}
-
-function draw()
-{
-    draw_powergraph();
-}
-
-function draw_powergraph() {
-    var dp = 1;
-    var units = "C";
-    var fill = false;
-    var plotColour = 0;
-
-    var options = {
-        lines: { fill: fill },
-        xaxis: { mode: "time", timezone: "browser", min: view.start, max: view.end},
-        yaxes: [{ min: 0 }],
-        grid: {
-            hoverable: true, 
-            clickable: true,
-            color: "#aaa",
-            borderWidth: 0
-        },
-        selection: { mode: "x" }
-    }
-    
-    view.calc_interval(1500); // npoints = 1500
-    
-    // -------------------------------------------------------------------------------------------------------
-    // LOAD DATA ON INIT OR RELOAD
-    // -------------------------------------------------------------------------------------------------------
-    if (reload) {
-        reload = false;
-
-        var feedid = config.app.solar.value;
-        if (feedid!=false)
-            timeseries.load("solar",feed.getdata(feedid,view.start,view.end,view.interval,1));
-        
-        var feedid = config.app.use.value;
-        timeseries.load("use",feed.getdata(config.app.use.value,view.start,view.end,view.interval,1));
-        
-        timeseries.load("remotewind",getdataremote(97699,view.start,view.end,view.interval));   
-    }
-    // -------------------------------------------------------------------------------------------------------
-    
-    var use_data = [];
-    var solar_data = [];
-    var wind_data = [];
-    var gen_data = [];
-    var bal_data = [];
-    var store_data = [];
-    
-    var t = 0;
-    var store = 0;
-    var use_now = 0;
-    var solar_now = 0;
-    var wind_now = 0;
-    
-    var total_solar_kwh = 0;
-    var total_wind_kwh = 0;
-    var total_use_kwh = 0;
-    var total_use_direct_kwh = 0;
-    
-    var datastart = timeseries.start_time("use");
-    
-    var interval = view.interval;
-    for (var z=0; z<timeseries.length("use"); z++) {
-
-        // -------------------------------------------------------------------------------------------------------
-        // Get solar or use values
-        // -------------------------------------------------------------------------------------------------------
-        if (config.app.solar.value && timeseries.value("solar",z)!=null) solar_now = timeseries.value("solar",z);  
-        if (timeseries.value("use",z)!=null) use_now = timeseries.value("use",z);
-
-        if (timeseries.value("remotewind",z)!=null) {
-            var gridwind = timeseries.value("remotewind",z);
-            var average_power = ((config.app.windkwh.value/365.0)/0.024);
-            wind_now = Math.round((average_power / average_wind_power) * gridwind);
-        }        
-        // -------------------------------------------------------------------------------------------------------
-        // Supply / demand balance calculation
-        // -------------------------------------------------------------------------------------------------------
-        if (solar_now<10) solar_now = 0;
-        
-        var gen_now = solar_now + wind_now;
-        var balance = gen_now - use_now;
-        
-        if (balance>=0) total_use_direct_kwh += (use_now*interval)/(1000*3600);
-        if (balance<0) total_use_direct_kwh += (gen_now*interval)/(1000*3600);
-        
-        var store_change = (balance * interval) / (1000*3600);
-        store += store_change;
-        
-        total_wind_kwh += (wind_now*interval)/(1000*3600);
-        total_solar_kwh += (solar_now*interval)/(1000*3600);
-        total_use_kwh += (use_now*interval)/(1000*3600);
-        
-        var time = datastart + (1000 * interval * z);
-        use_data.push([time,use_now]);
-        solar_data.push([time,wind_now+solar_now]);
-        wind_data.push([time,wind_now]);
-        bal_data.push([time,balance]);
-        store_data.push([time,store]);
-        
-        t += interval;
-    }
-    $(".total_wind_kwh").html(total_wind_kwh.toFixed(1));
-    $(".total_solar_kwh").html(total_solar_kwh.toFixed(1));
-    $(".total_use_kwh").html((total_use_kwh).toFixed(1));
-    
-    $(".total_use_direct_prc").html(Math.round(100*total_use_direct_kwh/total_use_kwh)+"%");
-    $(".total_use_via_store_prc").html(Math.round(100*(1-(total_use_direct_kwh/total_use_kwh)))+"%");
-
-    $(".total_use_direct_kwh").html((total_use_direct_kwh).toFixed(1));
-    $(".total_use_via_store_kwh").html((total_use_kwh-total_use_direct_kwh).toFixed(1));
-
-    options.xaxis.min = view.start;
-    options.xaxis.max = view.end;
-    
-    var series = [
-        {data:solar_data,color: "#dccc1f", lines:{lineWidth:0, fill:1.0}},
-        {data:wind_data,color: "#2ed52e", lines:{lineWidth:0, fill:1.0}},
-        {data:use_data,color: "#0699fa",lines:{lineWidth:0, fill:0.8}}
-    ];
-
-    if (show_balance_line) series.push({data:store_data,yaxis:2, color: "#888"});
-    
-    $.plot($('#placeholder'),series,options);
-    $(".ajax-loader").hide();
-}
-
-// ------------------------------------------------------------------------------------------
-// POWER GRAPH EVENTS
-// ------------------------------------------------------------------------------------------
-function powergraph_events() {
-
-    $('#placeholder').unbind("plotclick");
-    $('#placeholder').unbind("plothover");
-    $('#placeholder').unbind("plotselected");
-
-    $('#placeholder').bind("plotselected", function (event, ranges) {
-        view.start = ranges.xaxis.from;
-        view.end = ranges.xaxis.to;
-
-        autoupdate = false;
-        reload = true; 
-        
-        var now = +new Date();
-        if (Math.abs(view.end-now)<30000) {
-            autoupdate = true;
-            live_timerange = view.end - view.start;
-        }
-
-        draw();
-    });
-}
-
-// on finish sidebar hide/show
-$(function() {
-    $(document).on('window.resized hidden.sidebar.collapse shown.sidebar.collapse', resize)
-})
-// ----------------------------------------------------------------------
-// App log
-// ----------------------------------------------------------------------
-function app_log (level, message) {
-    if (level=="ERROR") alert(level+": "+message);
-    console.log(level+": "+message);
-}
-
-// ----------------------------------------------------------------------
-// Remote data requests
-// ----------------------------------------------------------------------
-function getdataremote(id,start,end,interval)
-{   
-    var data = [];
-    $.ajax({                                      
-        url: path+"app/dataremote",
-        data: {id:id,start:start,end:end,interval:interval,skipmissing:0,limitinterval:0},
-        dataType: 'json',
-        async: false,                      
-        success: function(result) {
-            if (!result || result===null || result==="" || result.constructor!=Array) {
-                console.log("ERROR","feed.getdataremote invalid response: "+result);
-                result = [];
-            }
-            data = result;
-        }
-    });
-    return data;
-}
-
-function getvalueremote(id)
-{   
-    var value = 0;
-    $.ajax({                                      
-        url: path+"app/valueremote",                       
-        data: {id:id}, dataType: 'json', async: false,                      
-        success: function(result) {
-            if (isNaN(result)) {
-                console.log("ERROR","feed.getvalueremote value is not a number, found: "+result);
-                result = 0;
-            }
-            value = parseFloat(result);
-        }
-    });
-    return value;
-}
 </script>
+<?php load_js("Modules/app/apps/OpenEnergyMonitor/myenergy/myenergy.js"); ?>

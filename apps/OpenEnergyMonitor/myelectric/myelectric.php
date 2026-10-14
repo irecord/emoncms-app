@@ -1,137 +1,102 @@
 <?php
-    defined('EMONCMS_EXEC') or die('Restricted access');
-    global $path, $session, $v;
+defined('EMONCMS_EXEC') or die('Restricted access');
+global $path, $session, $v;
+
+load_js("Modules/feed/feed.js");
+load_js("Modules/app/Lib/graph_bars.js");
+load_js("Modules/app/Lib/graph_lines.js");
+load_js("Modules/app/Lib/timeseries.js");
+load_js("Modules/app/Lib/vis.helper.js");
+load_js("Lib/js/DateTimePicker.js");
+load_css("Theme/css/datetimepicker.css");
+load_css("Modules/app/Views/css/app-kit.css");
+load_css("Modules/app/apps/OpenEnergyMonitor/myelectric/myelectric.css");
 ?>
-<link href="<?php echo $path; ?>Modules/app/Views/css/config.css?v=<?php echo $v; ?>" rel="stylesheet">
-<link href="<?php echo $path; ?>Modules/app/Views/css/dark.css?v=<?php echo $v; ?>" rel="stylesheet">
 
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/appconf.js?v=<?php echo $v; ?>"></script>
-<script type="text/javascript" src="<?php echo $path; ?>Modules/feed/feed.js?v=<?php echo $v; ?>"></script>
-
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/graph_bars.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/graph_lines.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Modules/app/Lib/timeseries.js?v=<?php echo $v; ?>"></script> 
-<script type="text/javascript" src="<?php echo $path; ?>Lib/vis.helper.js?v=<?php echo $v; ?>"></script> 
-
-<nav id="buttons" class="d-flex justify-content-between">
-    <ul id="tabs" class="nav nav-pills mb-0">
-        <li><button class="btn btn-large btn-link btn-inverse myelectric-view-cost" ><?php echo tr("Cost") ?></button></li>
-        <li><button class="btn btn-large btn-link btn-inverse myelectric-view-kwh active" ><?php echo tr("kWh") ?></button></li>
-    </ul>
-    <?php include(dirname(__DIR__).'/config-nav.php'); ?>
-</nav>
+<div class="app-page" data-bs-theme="dark">
 
 <section id="app-block" style="display:none">
-    <div class="d-flex justify-content-between">
-        <div>
-            <h5 class="electric-title mb-0 text-sm-larger text-light"><?php echo tr('POWER NOW') ?></h5>
-            <h2 class="power-value display-sm-4 display-sm-3 display-lg-2 mt-0 mb-lg-3 text-primary">
-                <span id="powernow">0</span>
-            </h2>
-        </div>
-        <div class="text-xs-right">
-            <h5 class="electric-title mb-0 text-sm-larger text-light"><?php echo tr('TODAY') ?></h5>
-            <h2 class="power-value display-sm-4 display-sm-3 display-lg-2 mt-0 mb-lg-3 text-primary">
-                <span id="usetoday_units_a"></span>
-                <span id="usetoday"></span>
-                <small id="usetoday_units_b" class="usetoday"></small>
-            </h2>
-        </div>
-    </div>
 
-    <?php include(dirname(__DIR__).'/graph-nav.php'); ?>
-
-    <div class="d-flex justify-content-between">
-        <div class="chart-placeholder double" id="placeholder_bound_power">
-            <canvas id="placeholder_power"></canvas>
-        </div>
-        <div class="chart-placeholder double" id="placeholder_bound_kwhd">
-            <canvas id="placeholder_kwhd"></canvas>
-        </div>
-    </div>
-
-
-    <div id="breakdown" class="d-flex justify-content-between py-lg-2 text-light">
-        <div class="appbox mb-3 text-primary">
-            <h5 class="appbox-title my-0 text-light text-sm-larger"><?php echo tr('WEEK') ?></h5>
-            <h3 class="appbox-value mb-0 text-sm-larger">
-                <span class="u1a"></span>
-                <span id="week_kwh"></span>
-                <small class="u1b"></small>
-            </h3>
-            <h5 class="appbox-units my-0">
-                <span class="u2a"></span>
-                <span id="week_kwhd"></span>
-                <span class="u2b">/day</span>
-            </h5>
-        </div>
-
-        <div class="appbox mb-3 text-primary">
-            <h5 class="appbox-title my-0 text-light text-sm-larger"><?php echo tr('MONTH') ?></h5>
-            <h3 class="appbox-value mb-0 text-sm-larger">
-                <span class="u1a"></span>
-                <span id="month_kwh"></span>
-                <small class="u1b"></small>
-            </h3>
-            <h5 class="appbox-units my-0">
-                <span class="u2a"></span>
-                <span id="month_kwhd"></span>
-                <span class="u2b">/day</span>
-            </h5>
-        </div>
-
-        <div class="appbox mb-3 text-primary">
-            <h5 class="appbox-title my-0 text-light text-sm-larger"><?php echo tr('YEAR') ?></h5>
-            <h3 class="appbox-value mb-0 text-sm-larger">
-                <span class="u1a"></span>
-                <span id="year_kwh"></span>
-                <small class="u1b"></small>
-            </h3>
-            <h5 class="appbox-units my-0">
-                <span class="u2a"></span>
-                <span id="year_kwhd"></span>
-                <span class="u2b">/day</span>
-            </h5>
-        </div>
-
-        <div class="appbox mb-3 text-primary">
-            <h5 class="appbox-title my-0 text-light text-sm-larger"><?php echo tr('ALL') ?></h5>
-            <h3 class="appbox-value mb-0 text-sm-larger">
-                <span class="u1a"></span>
-                <span id="alltime_kwh"></span>
-                <small class="u1b"></small>
-            </h3>
-            <h5 class="appbox-units my-0">
-                <span class="u2a"></span>
-                <span id="alltime_kwhd"></span>
-                <span class="u2b">/day</span>
-            </h5>
-        </div>
-    </div>
-</section>
-
-
-<section id="app-setup" class="hide pb-3">
-    <!-- instructions and settings -->
-    <div class="px-3">
-        <div class="row-fluid">
-            <div class="span9 appconfig-description">
-                <div class="appconfig-description-inner text-light">
-                    <h2 class="appconfig-title text-primary"><?php echo tr('My Electric'); ?></h2>
-                    <p class="lead">The My Electric app is a simple home energy monitoring app for exploring home or building electricity consumption over time. It includes a real-time view and a historic kWh per day bar graph.</p>
-                    <p><strong class="text-white">Auto configure:</strong> This app can auto-configure connecting to emoncms feeds with the names shown on the right, alternatively feeds can be selected by clicking on the edit button.</p>
-                    <p><strong class="text-white">Cumulative kWh</strong> feeds can be generated from power feeds with the power_to_kwh input processor.</p>
-                    <img src="../Modules/app/images/myelectric_app.png" class="d-none d-sm-inline-block">
+    <div class="app-card">
+        <nav class="app-card-head">
+            <div id="tabs" class="nav nav-underline">
+                <button class="nav-link myelectric-view-cost"><i class="svg-icon-schedule"></i><?php echo tr("Cost") ?></button>
+                <button class="nav-link myelectric-view-kwh active"><i class="svg-icon-smartmeter"></i><?php echo tr("kWh") ?></button>
+            </div>
+            <div class="app-card-tools">
+                <span id="live-status" class="app-status"><span class="app-status-dot"></span><span class="app-status-text"></span></span>
+                <div class="nav">
+                    <button class="nav-link config-open" title="<?php echo tr('Configure app') ?>"><i class="svg-icon-wrench"></i></button>
+                    <button class="nav-link config-close d-none" title="<?php echo tr('Close') ?>"><i class="svg-icon-close"></i></button>
                 </div>
             </div>
-            <div class="span3 app-config pt-3"></div>
+        </nav>
+
+        <div class="app-live">
+            <div>
+                <div class="app-live-label"><?php echo tr('POWER NOW') ?></div>
+                <div class="app-live-value text-use"><span id="powernow">0</span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('TODAY') ?></div>
+                <div class="app-live-value text-use"><span id="usetoday_units_a"></span><span id="usetoday"></span><span id="usetoday_units_b" class="power-unit-static"></span></div>
+            </div>
         </div>
     </div>
+
+    <div class="app-card app-card-body">
+        <div id="graph-nav" class="app-navbar">
+            <?php include "Modules/app/Lib/timebar.php"; ?>
+        </div>
+
+        <?php include "Modules/app/Lib/timebar_manual.php"; ?>
+
+        <div class="myelectric-charts">
+            <div id="placeholder_bound_power"><canvas id="placeholder_power"></canvas></div>
+            <div id="placeholder_bound_kwhd"><canvas id="placeholder_kwhd"></canvas></div>
+        </div>
+    </div>
+
+    <div class="app-card app-card-body">
+        <div class="app-card-caption">
+            <span class="app-section-label"><?php echo tr('Totals') ?></span>
+        </div>
+        <div class="app-live myelectric-totals">
+            <div>
+                <div class="app-live-label"><?php echo tr('WEEK') ?></div>
+                <div class="app-live-value text-use"><span class="u1a"></span><span id="week_kwh"></span><span class="power-unit-static u1b"></span></div>
+                <div class="myelectric-kwhd text-use"><span class="u2a"></span><span id="week_kwhd"></span><span class="u2b">/day</span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('MONTH') ?></div>
+                <div class="app-live-value text-use"><span class="u1a"></span><span id="month_kwh"></span><span class="power-unit-static u1b"></span></div>
+                <div class="myelectric-kwhd text-use"><span class="u2a"></span><span id="month_kwhd"></span><span class="u2b">/day</span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('YEAR') ?></div>
+                <div class="app-live-value text-use"><span class="u1a"></span><span id="year_kwh"></span><span class="power-unit-static u1b"></span></div>
+                <div class="myelectric-kwhd text-use"><span class="u2a"></span><span id="year_kwhd"></span><span class="u2b">/day</span></div>
+            </div>
+            <div>
+                <div class="app-live-label"><?php echo tr('ALL') ?></div>
+                <div class="app-live-value text-use"><span class="u1a"></span><span id="alltime_kwh"></span><span class="power-unit-static u1b"></span></div>
+                <div class="myelectric-kwhd text-use"><span class="u2a"></span><span id="alltime_kwhd"></span><span class="u2b">/day</span></div>
+            </div>
+        </div>
+    </div>
+
 </section>
 
-<div class="ajax-loader"><img src="<?php echo $path; ?>Modules/app/images/ajax-loader.gif"/></div>
+<div id="appconf-description" style="display:none">
+    <p class="lead">The My Electric app is a simple home energy monitoring app for exploring home or building electricity consumption over time. It includes a real-time view and a historic kWh per day bar graph.</p>
+</div>
+<?php include('Modules/app/Lib/appconf/appconf.php'); ?>
 
-<script src="<?php echo $path; ?>Lib/misc/gettext.js?v=<?php echo $v; ?>"></script> 
+<div class="ajax-loader"></div>
+
+</div>
+
+<?php load_js("Lib/js/gettext.js"); ?> 
 <script>
 function getTranslations(){
     return {
@@ -154,14 +119,6 @@ var sessionwrite = <?php echo $session['write']; ?>;
 feed.apikey = apikey;
 feed.public_userid = public_userid;
 feed.public_username = public_username;
-// ----------------------------------------------------------------------
-// Display
-// ----------------------------------------------------------------------
-$("body").css('background-color','#222');
-$(window).ready(function(){
-    $("#footer").css('background-color','#181818');
-    $("#footer").css('color','#999');
-});
 if (!sessionwrite) $(".config-open").hide();
 
 // ----------------------------------------------------------------------
@@ -175,6 +132,7 @@ config.app = {
     "kw":{"type":"checkbox", "default":0, "name": "Show kW", "description":tr("Display power as kW")}
 };
 
+config.app_name = "My Electric";
 config.id = <?php echo $id; ?>;
 config.name = "<?php echo $name; ?>";
 config.public = <?php echo $public; ?>;
@@ -229,17 +187,31 @@ function init()
     // Decleration of myelectric events
     // -------------------------------------------------------------------------
     
-    $("#zoomout").click(function (e) {view.zoomout(); reload = true; autoupdate = false; fastupdate(e);});
-    $("#zoomin").click(function (e) {view.zoomin(); reload = true; autoupdate = false; fastupdate(e);});
-    $('#right').click(function (e) {view.panright(); reload = true; autoupdate = false; fastupdate(e);});
-    $('#left').click(function (e) {view.panleft(); reload = true; autoupdate = false; fastupdate(e);});
+    $("#zoomout").click(function () {view.zoomout(); reload = true; autoupdate = false; fastupdate();});
+    $("#zoomin").click(function () {view.zoomin(); reload = true; autoupdate = false; fastupdate();});
+    $('#right').click(function () {view.panright(); reload = true; autoupdate = false; fastupdate();});
+    $('#left').click(function () {view.panleft(); reload = true; autoupdate = false; fastupdate();});
     
     // zoom graph to timescale
-    $('.time').click(function (event) {
-        view.timewindow($(this).attr("time")/24.0); 
-        reload = true; 
+    $('#time-select').change(function () {
+        var hours = parseFloat($(this).val());
+        if (!hours) return;
+        view.timewindow(hours/24.0);
+        reload = true;
         autoupdate = true;
-        fastupdate(event);
+        fastupdate();
+    });
+
+    // Start and End fields, and the Now button, from Lib/vis.helper.js
+    timebar_manual(function () {
+        reload = true;
+        autoupdate = false;
+        fastupdate();
+    });
+    timebar_now(function () {
+        reload = true;
+        autoupdate = true;
+        fastupdate();
     });
     
     // toggle cost/kwh
@@ -323,13 +295,13 @@ function fastupdate(event)
    var use_kwh = config.app.use_kwh.value;
    if (event && event.target) {
        // triggered by click
-       $target = $(event.target);
+       $target = $(event.currentTarget || event.target);
        $target.addClass('active').siblings().removeClass('active');
    }
     if (viewmode=="energy") {
         scale = 1;
         $("#usetoday_units_a").html("");
-        $("#usetoday_units_b").html(" kWh");
+        $("#usetoday_units_b").html("kWh");
         $(".u1a").html(""); $(".u1b").html("kWh");
         $(".u2a").html(""); $(".u2b").html(" kWh/d");
     } else {
@@ -371,22 +343,23 @@ function fastupdate(event)
     // --------------------------------------------------------------------
     feeds = feed.listbyid();
     if (feeds === null) { return; }
+    if (feeds[use]) live_status_update(feeds[use].time);
     
     // set the power now value
     if (viewmode=="energy") {
         if (powerUnit==='W') {
-            $("#powernow").html((feeds[use].value*1).toFixed(0)+"W");
+            $("#powernow").html((feeds[use].value*1).toFixed(0)+"<span class='power-unit'>W</span>");
         } else {
-            $("#powernow").html((feeds[use].value*0.001).toFixed(1)+"kW");
+            $("#powernow").html((feeds[use].value*0.001).toFixed(1)+"<span class='power-unit'>kW</span>");
         }
     } else {
         // 1000W for an hour (x3600) = 3600000 Joules / 3600,000 = 1.0 kWh x 0.15p = 0.15p/kWh (scaling factor is x3600 / 3600,000 = 0.001)
         var cost_now = feeds[use].value*1*config.app.unitcost.value*0.001;
         
         if (cost_now<1.0) {
-            $("#powernow").html(config.app.currency.value+(feeds[use].value*1*config.app.unitcost.value*0.001).toFixed(3)+"/hr");
+            $("#powernow").html(config.app.currency.value+(feeds[use].value*1*config.app.unitcost.value*0.001).toFixed(3)+"<span class='power-unit-static'>/hr</span>");
         } else {
-            $("#powernow").html(config.app.currency.value+(feeds[use].value*1*config.app.unitcost.value*0.001).toFixed(2)+"/hr");
+            $("#powernow").html(config.app.currency.value+(feeds[use].value*1*config.app.unitcost.value*0.001).toFixed(2)+"<span class='power-unit-static'>/hr</span>");
         }
     }
     // Advance view
@@ -448,6 +421,7 @@ function fastupdate(event)
     
     graph_lines.draw("placeholder_power",series,options);
     $(".ajax-loader").hide();
+    timebar_update(false);
 
     // --------------------------------------------------------------------------------------------------------
     // THIS WEEK, MONTH, YEAR TOTALS

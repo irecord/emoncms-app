@@ -15,7 +15,7 @@ if (!session_write) $(".config-open").hide();
 // Configuration
 // ----------------------------------------------------------------------
 config.app = {
-    "app_name": { "type": "value", "name": "App title", "default": "MY HEATPUMP", "optional": true, "description": "Enter custom title for app" },
+    "app_name": { "type": "value", "name": "App title", "default": "My Heatpump", "optional": true, "description": "Enter custom title for app" },
     // Electric
     "heatpump_elec": { "type": "feed", "autoname": "heatpump_elec", "description": "Electric use in watts" },
     "heatpump_elec_kwh": { "type": "feed", "autoname": "heatpump_elec_kwh", "description": "Cumulative electric use kWh" },
@@ -42,6 +42,13 @@ config.app = {
     "heatpump_dhwT": { "type": "feed", "autoname": "heatpump_dhwT", "optional": true, "description": "Domestic Hot Water temperature" },
     "heatpump_dhwTargetT": { "type": "feed", "autoname": "heatpump_dhwTargetT", "optional": true, "description": "Target DHW Temperature" },
     "heatpump_dhwT_unit": {"type": "select", "name": "DHW Temperature Unit", "options": {"%": "%", "°C": "°C"}, "default": "°C", "optional": true, "description": "Select the unit for the DHW temperature feed."},
+
+    // Hybrid Boiler
+    'boiler_heat': { "type": "feed", "autoname": "boiler_heat", "optional": true, "description": "Boiler heat output in watts" },
+
+    // Solar
+    "solar_elec_kwh": { "type": "feed", "autoname": "solar_elec_kwh", "optional": true, "description": "Cumulative solar generation kWh, used by heat demand" },
+
     // Other
     "starting_power": { "type": "value", "default": 150, "name": "Starting power", "description": "Starting power of heatpump in watts" },
     "auto_detect_cooling":{"type":"checkbox", "default":false, "name": "Auto detect cooling", "description":"Auto detect summer cooling if cooling status feed is not present"},
@@ -73,6 +80,7 @@ var updaterinst = false;
 var elec_enabled = false;
 var heat_enabled = false;
 var immersion_enabled = false;
+var boiler_enabled = false;
 var feeds = {};
 var progtime = 0;
 var firstrun = true;
@@ -96,6 +104,7 @@ var bargraph_end = 0;
 var last_bargraph_start = 0;
 var last_bargraph_end = 0;
 var bargraph_mode = "combined";
+var bargraph_alltime = false;
 
 var realtime_cop_div_mode = "30min";
 
@@ -118,27 +127,27 @@ function init() {
 
 function show() {
 
-    $("#app_name").html(config.app['app_name'].value);
+    // Saved configs may hold the old upper case default
+    var app_name = config.app['app_name'].value;
+    $("#app_name").text(app_name == "MY HEATPUMP" ? "My Heatpump" : app_name);
     // Apply starting_power
     $("#starting_power").val(config.app.starting_power.value);
 
     if (!config.app.enable_process_daily.value) {
         $(".bargraph_mode").hide();
-        $("#clear-daily-data").hide();
 
         bargraph_mode = "combined";
     } else {
         $(".bargraph_mode").show();
-        $("#clear-daily-data").show();
     }
 
-    $("body").css('background-color', 'WhiteSmoke');
     // -------------------------------------------------------------------------------
     // Configurations
     // -------------------------------------------------------------------------------
     if (feeds["heatpump_elec_kwh"] != undefined) elec_enabled = true;
     if (feeds["heatpump_heat"] != undefined && feeds["heatpump_heat_kwh"] != undefined) heat_enabled = true;
     if (feeds["immersion_elec"] != undefined) immersion_enabled = true;
+    if (feeds["boiler_heat"] != undefined) boiler_enabled = true;
 
     if (feeds["heatpump_flowrate"] != undefined) {
         $("#show_flow_rate_bound").show();
@@ -185,10 +194,10 @@ function show() {
     if (config_start_date > alltime_start_time) {
         alltime_start_time = config_start_date;
         var d = new Date(alltime_start_time * 1000);
-        $("#all_time_history_title").html("TOTAL SINCE: " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear());
+        $("#all_time_history_title").html("Total since " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear());
     } else {
         var d = new Date(start_time * 1000);
-        $("#all_time_history_title").html("TOTAL SINCE: " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear());
+        $("#all_time_history_title").html("Total since " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear());
     }
 
     // Load elec start here after start_time may have been modified by heat start time
@@ -200,26 +209,17 @@ function show() {
         heatpump_heat_start = feed.getvalue(feeds["heatpump_heat_kwh"].id, alltime_start_time);
     }
 
-    resize();
-
     var date = new Date();
     var now = date.getTime();
 
     end = end_time * 1000;
 
-    if (now - end > HOUR) {
-        $("#last_updated").show();
-        $("#live_table").hide();
-        date.setTime(end);
-        let h = date.getHours();
-        let m = date.getMinutes();
-        if (h < 10) h = "0" + h;
-        if (m < 10) m = "0" + m;
-        $("#last_updated").html("Last updated: " + date.toDateString() + " " + h + ":" + m)
-    } else {
-        $("#last_updated").hide();
-        $("#live_table").show();
-    }
+    // Live values only when the data is recent. The header status gives its age.
+    live_status_update(end_time);
+    $("#live_table").toggle(now - end <= HOUR);
+    $(".hp-return-part").toggle(feeds["heatpump_returnT"] != undefined);
+
+    resize();
 
     if (urlParams.mode != undefined) {
         if (urlParams.mode == "power") {
@@ -235,6 +235,10 @@ function show() {
         if (urlParams.flow) {
             $("#show_flow_rate").click();
             show_flow_rate = true;
+        }
+        if (urlParams.dhw) {
+            $("#show_dhw_temp").click();
+            show_dhw_temp = true;
         }
         if (urlParams.carnot) {
             $("#carnot_enable")[0].click();
@@ -298,7 +302,18 @@ function show() {
                 if (result.combined_elec_kwh != undefined) {
                     $("#total_elec").html(Math.round(result.combined_elec_kwh));
                     $("#total_heat").html(Math.round(result.combined_heat_kwh));
-                    $("#total_cop").html(result.combined_cop.toFixed(2));
+                    if (result.combined_cop != undefined && result.combined_cop != null) {
+                        $("#total_cop").html(result.combined_cop.toFixed(2));
+                    } else {
+                        $("#total_cop").html("-");
+                    }
+                    
+                }
+
+                // if result includes boiler show this
+                if (boiler_enabled && result.boiler_kwh != undefined) {
+                    $("#total_boiler").html(Math.round(result.boiler_kwh));
+                    $("#boiler_total_bound").show();
                 }
             }
         });
@@ -322,6 +337,11 @@ function updater() {
         if (feeds["heatpump_elec"] != undefined) $("#heatpump_elec").html(Math.round(feeds["heatpump_elec"].value));
         if (feeds["heatpump_heat"] != undefined) $("#heatpump_heat").html(Math.round(feeds["heatpump_heat"].value));
         if (feeds["heatpump_flowT"] != undefined) $("#heatpump_flowT").html((1 * feeds["heatpump_flowT"].value).toFixed(1));
+        if (feeds["heatpump_returnT"] != undefined) $("#heatpump_returnT").html((1 * feeds["heatpump_returnT"].value).toFixed(1));
+
+        // Header status from the latest electric or heat value
+        var latest = feeds["heatpump_elec"] || feeds["heatpump_heat"] || feeds["heatpump_elec_kwh"];
+        if (latest != undefined) live_status_update(latest.time);
 
         if (realtime_cop_div_mode == "inst" && feeds["heatpump_elec"] != undefined && feeds["heatpump_heat"] != undefined) {
             var COP_inst = 0;
@@ -431,21 +451,27 @@ function resize() {
     }
 
 
-    var top_offset = 0;
     var placeholder_bound = $('#placeholder_bound');
     var placeholder = $('#placeholder');
 
     var width = placeholder_bound.width();
-    var height = width * 0.6;
+
+    // Viewport height less content above the chart (measured from the top of the page,
+    // independent of scroll position), the legend, the chart foot and the all time history
+    // card. Legend height is the tallest seen at this width and the foot a fixed allowance,
+    // so the chart keeps its size when the view changes.
+    var chart_foot = 48;
+    var history_card = $('#all_time_history_title').closest('.app-card').outerHeight(true);
+    var offset_top = placeholder_bound.offset().top;
+    var height = window.innerHeight - offset_top - chart_legend_height() - chart_foot - history_card - 16;
+
+    // min size to avoid flot errors
     if (height < 250) height = 250;
-    if (height > 480) height = 480;
-    if (height > width) height = width;
 
     placeholder.width(width);
     placeholder_bound.height(height);
-    placeholder.height(height - top_offset);
+    placeholder.height(height);
 
-    
 
     if (viewmode == "bargraph") {
         bargraph_draw();
@@ -455,7 +481,20 @@ function resize() {
 }
 // on finish sidebar hide/show
 $(function () {
-    $(document).on('window.resized hidden.sidebar.collapse shown.sidebar.collapse', resize)
+    var last_width = window.innerWidth;
+    var last_height = window.innerHeight;
+
+    $(document).on('window.resized', function () {
+        // Touch devices: skip small height-only changes from the browser address bar
+        // showing and hiding on scroll, and from the on-screen keyboard
+        var touch = window.matchMedia('(pointer: coarse)').matches;
+        if (touch && window.innerWidth == last_width && Math.abs(window.innerHeight - last_height) < 150) return;
+        last_width = window.innerWidth;
+        last_height = window.innerHeight;
+        resize();
+    })
+
+    $(document).on('hidden.sidebar.collapse shown.sidebar.collapse', resize)
 })
 // ----------------------------------------------------------------------
 // App log
@@ -478,6 +517,9 @@ function set_url_view_params(mode, start, end) {
     if (show_flow_rate) url.searchParams.set('flow', 1);
     else url.searchParams.delete('flow');
 
+    if (show_dhw_temp) url.searchParams.set('dhw', 1);
+    else url.searchParams.delete('dhw');
+
     if (show_defrost_and_loss) url.searchParams.set('cool', 1);
     else url.searchParams.delete('cool');
 
@@ -488,12 +530,76 @@ function set_url_view_params(mode, start, end) {
 }
 
 // -------------------------------------------------------------------------------
+// TIME BAR
+// -------------------------------------------------------------------------------
+
+// Time bar after a redraw. Daily bars use their own window. All ranges stay
+// listed, the range select switches view where needed.
+function hp_timebar_sync() {
+    var daily = viewmode == "bargraph";
+    if (daily) {
+        view.start = bargraph_start;
+        view.end = bargraph_end;
+    }
+    timebar_update(daily);
+    timebar_hide("option:not(#time-custom)", false);
+    if (daily && bargraph_alltime) $("#time-select").val("all");
+    $(".viewhistory").toggleClass("active", daily);
+    $(".viewpower").toggleClass("active", !daily);
+    $(".bargraph-navigation").toggle(daily);
+    $("#heatdemand-toggle").toggle(daily);
+    $("#heatdemand-block").toggle(daily && $("#heatdemand-toggle").html() == "HIDE HEAT DEMAND");
+}
+
+// Range select: under a week opens the power view, over a month the daily
+// bars, a week or a month keeps the current view
+$("#time-select").change(function () {
+    var value = $(this).val();
+    if (!value) return;
+    var daily = value == "all" || value > 720 || (value >= 168 && viewmode == "bargraph");
+    var end = (new Date()).getTime();
+    if (daily) {
+        var start = value == "all" ? start_time * 1000 : end - value * HOUR;
+        if (start < start_time * 1000) start = start_time * 1000;
+        if (viewmode != "bargraph") hp_show_daily();
+        bargraph_alltime = value == "all";
+        bargraph_load(start, end);
+        bargraph_draw();
+    } else {
+        hp_open_power(end - value * HOUR, end);
+    }
+});
+
+// Zoom and pan act on the daily bars or the power graph
+function hp_navigate(move) {
+    if (viewmode == "bargraph") {
+        view.start = bargraph_start;
+        view.end = bargraph_end;
+        move();
+        bargraph_alltime = false;
+        bargraph_load(view.start, view.end);
+        bargraph_draw();
+    } else {
+        move();
+        powergraph_load();
+    }
+}
+$("#zoomout").click(function () { hp_navigate(function () { view.zoomout(); }); });
+$("#zoomin").click(function () { hp_navigate(function () { view.zoomin(); }); });
+$("#right").click(function () { hp_navigate(function () { view.panright(); }); });
+$("#left").click(function () { hp_navigate(function () { view.panleft(); }); });
+
+// Start and End fields, and Now for the power view, from Lib/vis.helper.js
+timebar_manual(function () { hp_navigate(function () {}); });
+timebar_now(function () { powergraph_load(); });
+
+// -------------------------------------------------------------------------------
 // EVENTS
 // -------------------------------------------------------------------------------
 
 // Switch to bargraph
 $(".viewhistory").click(function () {
-    $(".powergraph-navigation").hide();
+    if (viewmode == "bargraph") return;
     var timeWindow = 30 * DAY;
     // var end = (new Date()).getTime();
     var end = end_time * 1000;
@@ -505,15 +611,21 @@ $(".viewhistory").click(function () {
         end = last_bargraph_end;
     }
 
-    viewmode = "bargraph";
+    hp_show_daily();
     bargraph_load(start, end);
     bargraph_draw();
+});
+
+// Daily view controls, before the bars load
+function hp_show_daily() {
+    viewmode = "bargraph";
     $(".bargraph-navigation").show();
     $("#advanced-toggle").hide();
     $("#advanced-block").hide();
-});
+}
 
-$('#placeholder').bind("plothover", function (event, pos, item) {
+document.getElementById('placeholder').addEventListener("plothover", function (event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item) {
         if (previousPoint != item.datapoint) {
             previousPoint = item.datapoint;
@@ -529,30 +641,50 @@ $('#placeholder').bind("plothover", function (event, pos, item) {
 });
 
 // Auto click through to power graph
-$('#placeholder').bind("plotclick", function (event, pos, item) {
+document.getElementById('placeholder').addEventListener("plotclick", function (event) {
+    var pos = event.detail[0], item = event.detail[1];
     if (item && !panning && viewmode == "bargraph") {
-
-        last_bargraph_start = bargraph_start;
-        last_bargraph_end = bargraph_end;
-
         var z = item.dataIndex;
-        view.start = data["heatpump_elec_kwhd"][z][0];
-        view.end = view.start + DAY;
-        viewmode = "powergraph";
-        powergraph_load();
+        var itemTime = item.datapoint[0];
 
-        $(".bargraph-navigation").hide();
-        $(".powergraph-navigation").show();
-        $("#advanced-toggle").show();
-        if ($("#advanced-toggle").html() == "SHOW DETAIL") {
-            $("#advanced-block").hide();
-        } else {
-            $("#advanced-block").show();
+        // if timestamp map available, use it to find correct index in daily data arrays
+        if (daily_data_timestamp_map != undefined && daily_data_timestamp_map[itemTime] != undefined) {
+            z = daily_data_timestamp_map[itemTime];
         }
+
+        hp_open_day(data["heatpump_elec_kwhd"][z][0]);
     }
 });
 
-$('#placeholder').bind("plotselected", function (event, ranges) {
+// Open the power view for the day starting at time (ms)
+function hp_open_day(time) {
+    hp_open_power(time, time + DAY);
+}
+
+// Open the power view for a window in ms, from either view
+function hp_open_power(start, end) {
+    if (viewmode == "bargraph") {
+        last_bargraph_start = bargraph_start;
+        last_bargraph_end = bargraph_end;
+    }
+
+    view.start = start;
+    view.end = end;
+    viewmode = "powergraph";
+    powergraph_load();
+
+    $(".bargraph-navigation").hide();
+    $(".powergraph-navigation").show();
+    $("#advanced-toggle").show();
+    if ($("#advanced-toggle").html() == "SHOW DETAIL") {
+        $("#advanced-block").hide();
+    } else {
+        $("#advanced-block").show();
+    }
+}
+
+document.getElementById('placeholder').addEventListener("plotselected", function (event) {
+    var ranges = event.detail[0];
     var start = ranges.xaxis.from;
     var end = ranges.xaxis.to;
     panning = true;
@@ -566,24 +698,6 @@ $('#placeholder').bind("plotselected", function (event, ranges) {
         powergraph_load();
     }
     setTimeout(function () { panning = false; }, 100);
-});
-
-$("#clear-daily-data").click(function () {
-    $.ajax({
-        url: path + "app/cleardaily",
-        data: { id: config.id, apikey: apikey },
-        async: true,
-        dataType: "json",
-        success: function (result) {
-            if (result.success) {
-                alert("Daily data cleared, please refresh the page to reload data");
-                app_log("INFO", "Daily data cleared");
-            } else {
-                alert("Failed to clear daily data");
-                app_log("ERROR", "Failed to clear daily data");
-            }
-        }
-    });
 });
 
 $("#show_dhw_temp").click(function () {
