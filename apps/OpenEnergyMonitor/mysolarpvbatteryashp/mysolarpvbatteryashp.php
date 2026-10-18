@@ -3,7 +3,7 @@ defined('EMONCMS_EXEC') or die('Restricted access');
 global $path, $session, $v;
 
 load_js("Modules/feed/feed.js");
-load_js("Lib/js/flot-5.1.0.mod.min.js");
+load_js("Modules/app/apps/OpenEnergyMonitor/mysolarpvbatteryashp/flot-5.1.0.mod.min.js");
 load_js("Modules/app/Lib/vis.helper.js");
 load_js("Modules/app/Lib/timeseries.js");
 load_js("Lib/js/DateTimePicker.js");
