@@ -22,3 +22,7 @@
 @container app (max-width: 767.98px) {
     .app-live > * { text-align: center; }
 }
+
+.text-ashp {
+    color:#f33;
+}
