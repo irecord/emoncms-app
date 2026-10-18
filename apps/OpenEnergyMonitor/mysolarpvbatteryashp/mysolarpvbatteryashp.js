@@ -18,7 +18,7 @@ config.app = {
     "battery_charge":{"type":"feed", "autoname":"battery_charge", "description":"Battery charge power in watts"},
     "battery_discharge":{"type":"feed", "autoname":"battery_discharge", "description":"Battery discharge power in watts"},
     "battery_soc":{"optional":true, "type":"feed", "autoname":"battery_soc", "description":"Battery state of charge %"},
-    "heat_pump":{"optional":true, "type":"feed", "autoname":"heat_pump", "description":"Heat pump power in watts"},
+    "heat_pump":{"type":"feed", "autoname":"heat_pump", "description":"Heat pump power in watts"},
 
     // kWh feeds
     "use_kwh":{"optional":true, "type":"feed", "autoname":"use_kwh", "description":"Building consumption in kWh (not including battery charging)"},
@@ -55,7 +55,7 @@ var MIN_POWER = 10;                 // solar and battery power below this in W s
 // Power series, and energy totals with a kWh feed of the same name + "_kwh"
 var POWER_KEYS = ["solar", "use", "battery_charge", "battery_discharge", "heat_pump"];
 var SERIES_KEYS = POWER_KEYS.concat("battery_soc");
-var ENERGY_KEYS = ["solar", "use", "solar_direct", "import", "battery_charge", "battery_discharge"];
+var ENERGY_KEYS = ["solar", "use", "solar_direct", "import", "battery_charge", "battery_discharge", "heat_pump"];
 
 // Theme energy colours, from Lib/vis.helper.js. Export and discharge have no token.
 var COLORS = {
@@ -349,7 +349,7 @@ function draw_powergraph() {
     } else {
         series.push(
             area("use", "House", COLORS.house, 2, 0.8),
-            area("heat_pump", "Heat Pump", COLORS.heat_pump, 3, 0.8),
+            area("heat_pump", "Heat Pump", COLORS.heat_pump, 2, 0.8),
             area("battery_charge", "Charge", COLORS.charge, 2, 0.8),
             area("battery_discharge", "Discharge", COLORS.discharge, 1, 0.8));
     }
@@ -500,7 +500,7 @@ function kwh_flows() {
         var soc = kwh_window.battery_soc && kwh_window.battery_soc[z];
         push_point(flows, time, {
             solar: kwh.solar / hours * 1000,
-            use: kwh.use / hours * 1000,
+            use: (kwh.use - kwh.heat_pump) / hours * 1000,
             heat_pump: kwh.heat_pump / hours * 1000,
             battery_charge: kwh.battery_charge / hours * 1000,
             battery_discharge: kwh.battery_discharge / hours * 1000,
@@ -619,7 +619,7 @@ function draw_bargraph()
         };
     };
     var series = [
-        bar("Use", COLORS.use, 2, function (day) { return day.use; }),
+        bar("Use", COLORS.use, 2, function (day) { return day.use - day.heat_pump; }),
         bar("Heat Pump", COLORS.heat_pump, 2, function (day) { return day.heat_pump; }),
         bar("Self-consumption", COLORS.solar, 1, function (day) { return day.solar_direct; }),
         bar("Battery discharge", COLORS.discharge, 1, function (day) { return day.battery_discharge; }),
