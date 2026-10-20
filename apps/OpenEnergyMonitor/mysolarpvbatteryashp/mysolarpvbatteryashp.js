@@ -500,7 +500,8 @@ function kwh_flows() {
         var soc = kwh_window.battery_soc && kwh_window.battery_soc[z];
         push_point(flows, time, {
             solar: kwh.solar / hours * 1000,
-            use: (kwh.use - kwh.heat_pump) / hours * 1000,
+            //use: (kwh.use - kwh.heat_pump) / hours * 1000,
+            use: (kwh.use) / hours * 1000,
             heat_pump: kwh.heat_pump / hours * 1000,
             battery_charge: kwh.battery_charge / hours * 1000,
             battery_discharge: kwh.battery_discharge / hours * 1000,
@@ -619,7 +620,8 @@ function draw_bargraph()
         };
     };
     var series = [
-        bar("Use", COLORS.use, 2, function (day) { return day.use - day.heat_pump; }),
+        //bar("Use", COLORS.use, 2, function (day) { return day.use - day.heat_pump; }),
+        bar("Use", COLORS.use, 2, function (day) { return day.use; }),
         bar("Heat Pump", COLORS.heat_pump, 2, function (day) { return day.heat_pump; }),
         bar("Self-consumption", COLORS.solar, 1, function (day) { return day.solar_direct; }),
         bar("Battery discharge", COLORS.discharge, 1, function (day) { return day.battery_discharge; }),
