@@ -467,7 +467,8 @@ function power_flows() {
         if (!dc) t.battery_export += Math.max(0, discharge - (use - solar_direct) - 50) * to_kwh;
 
         push_point(flows, time, { solar: solar, 
-            use: use-heat_pump,
+            //use: use-heat_pump,
+            use: use,
             heat_pump: heat_pump,
             battery_charge: charge, battery_discharge: discharge, battery_soc: value.battery_soc });
     }
