@@ -257,14 +257,16 @@ function livefn()
         view.start = view.end - live_timerange;
     }
 
-    var solar = live.solar < MIN_POWER ? 0 : live.solar;
     var charge = live.battery_charge < MIN_POWER ? 0 : live.battery_charge;
     var discharge = live.battery_discharge < MIN_POWER ? 0 : live.battery_discharge;
+    var dc = config.app.is_dc_battery.value;
+    var solar = solar_after_discharge(live.solar, discharge);
+    if (solar < MIN_POWER) solar = 0;
     var use = live.use;
     var heat_pump = live.heat_pump;
 
     var balance = solar - use;
-    if (!config.app.is_dc_battery.value) balance += discharge - charge;
+    if (!dc) balance += discharge - charge;
     $(".balance-label").text(tr(balance > 0 ? "EXPORTING" : balance < 0 ? "IMPORTING" : "BALANCED"));
     $(".balance").parent().toggleClass("text-export", balance > 0).toggleClass("text-import", balance < 0);
 
@@ -293,6 +295,10 @@ function append_live(key, time, value) {
 // W rounded, or kW with the Show kW option
 function format_power(watts) {
     return config.app.kw.value === true ? as_kw(watts) : Math.round(watts);
+}
+
+function solar_after_discharge(solar, discharge) {
+    return config.app.is_dc_battery.value ? Math.max(0, solar - discharge) : solar;
 }
 
 // Time to empty at the discharge rate in W, from the SOC and battery capacity
@@ -448,11 +454,12 @@ function power_flows() {
             continue;
         }
 
-        var solar = value.solar < MIN_POWER ? 0 : value.solar;
         var use = value.use;
         var heat_pump = value.heat_pump;
         var charge = value.battery_charge;
         var discharge = value.battery_discharge;
+        var solar = solar_after_discharge(value.solar, discharge);
+        if (solar < MIN_POWER) solar = 0;
         var solar_direct = Math.min(solar, use);
         var balance = dc ? solar - use : solar - use - charge + discharge;
 
@@ -492,8 +499,9 @@ function kwh_flows() {
         }
         ENERGY_KEYS.forEach(function (key) {
             kwh[key] = Math.max(0, kwh[key]);
-            t[key] += kwh[key];
         });
+        kwh.solar = solar_after_discharge(kwh.solar, kwh.battery_discharge);
+        ENERGY_KEYS.forEach(function (key) { t[key] += kwh[key]; });
         // 50 W allowance for control lag
         if (!dc) t.battery_export += Math.max(0, kwh.battery_discharge - (kwh.use - kwh.solar_direct) - 0.05*hours);
 
@@ -583,6 +591,7 @@ function load_bargraph(start, end) {
             day[key] = data[key][z] ? data[key][z][1] : null;
             if (day[key] == null) return;
         }
+        day.solar = solar_after_discharge(day.solar, day.battery_discharge);
         daily.push(day);
     });
 
